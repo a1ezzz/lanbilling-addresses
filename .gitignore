@@ -1,0 +1,8 @@
+# caches
+__pycache__/
+.cache/
+# generated docs
+docs/pytest/
+docs/sphinx-html/
+docs/sphinx/api
+tests/.coverage

@@ -1,0 +1,13 @@
+MANIFEST.in
+README.rst
+setup.cfg
+setup.py
+sphinxcontrib/__init__.py
+sphinxcontrib/plantuml.py
+sphinxcontrib_plantuml.egg-info/PKG-INFO
+sphinxcontrib_plantuml.egg-info/SOURCES.txt
+sphinxcontrib_plantuml.egg-info/dependency_links.txt
+sphinxcontrib_plantuml.egg-info/namespace_packages.txt
+sphinxcontrib_plantuml.egg-info/not-zip-safe
+sphinxcontrib_plantuml.egg-info/requires.txt
+sphinxcontrib_plantuml.egg-info/top_level.txt
