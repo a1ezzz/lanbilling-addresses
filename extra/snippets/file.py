@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # lanbilling_addresses/<FILENAME>.py
 #
-# Copyright (C) 2016 the lanbilling-addresses authors and contributors
+# Copyright (C) 2017 the lanbilling-addresses authors and contributors
 # <see AUTHORS file>
 #
 # This file is part of lanbilling-addresses.
