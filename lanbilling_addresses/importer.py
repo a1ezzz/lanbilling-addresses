@@ -38,7 +38,7 @@ from lanbilling_addresses.lanbilling import WLanbillingAddresses, WLanbillingRPC
 
 class WGUIDCacheRecord(WInstanceSingletonCacheStorage.InstanceCacheRecord):
 
-	__cache_size__ = 1000
+	__cache_size__ = 100
 
 	@verify_value(decorated_function=lambda x: callable(x))
 	def __init__(self, result, decorated_function):

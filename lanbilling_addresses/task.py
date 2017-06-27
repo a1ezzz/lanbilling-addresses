@@ -137,7 +137,18 @@ class WFIASImportingTask(WThreadTask):
 
 	def __init__(self):
 		WThreadTask.__init__(self, thread_name='FIAS-Import', join_on_stop=True, ready_to_stop=True,)
-		# TODO: add login and password to configuration
+
+		login = WAppsGlobals.config['lanbilling-addresses']['login'].strip()
+		if len(login) == 0:
+			login = None
+
+		password = WAppsGlobals.config['lanbilling-addresses']['password'].strip()
+		if len(password) == 0:
+			password = None
+
+		hostname = WAppsGlobals.config['lanbilling-addresses']['hostname'].strip()
+		if len(hostname) == 0:
+			hostname = None
 
 		wsdl_url = WAppsGlobals.config['lanbilling-addresses']['wsdl_url'].strip()
 		if len(wsdl_url) == 0:
@@ -151,6 +162,7 @@ class WFIASImportingTask(WThreadTask):
 			soap_proxy = True
 
 		self.__rpc_client = WLanbillingRPC(
+			hostname=hostname, login=login, password=password,
 			wsdl_url=wsdl_url, soap_proxy_address=soap_proxy_address, soap_proxy=soap_proxy
 		)
 

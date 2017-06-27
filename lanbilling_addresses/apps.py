@@ -104,7 +104,7 @@ class WAddressesImportCommands:
 				cache_missed = WAddressImportCacheSingleton.storage.cache_missed()
 				total_tries = cache_hit + cache_missed
 				hit_rate = cache_hit / total_tries
-				output += 'Cache hit rate: {:.4f} (total tries: {:.4f}). Cache size: {:d} records'.format(hit_rate, total_tries, WGUIDCacheRecord.cache_size())
+				output += 'Cache hit rate: {:.4f} (total tries: {:d}). Cache size: {:d} records'.format(hit_rate, total_tries, WGUIDCacheRecord.cache_size())
 			else:
 				output += "Import doesn't started"
 
