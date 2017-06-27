@@ -33,12 +33,13 @@ from lxml.etree import iterparse
 
 from wasp_general.task.thread import WThreadTask
 from wasp_general.datetime import utc_datetime
+from wasp_general.cache import cache_control, WInstanceSingletonCacheStorage
 
 from wasp_launcher.apps import WAppsGlobals
 from wasp_launcher.mongodb import WMongoConnection
 
 from lanbilling_addresses.lanbilling import WLanbillingRPC
-from lanbilling_addresses.importer import WLanbillingAddressesImporter
+from lanbilling_addresses.importer import WLanbillingAddressesImporter, WGUIDCacheRecord, WAddressImportCacheSingleton
 
 
 class WFIASImportingTask(WThreadTask):
@@ -47,6 +48,18 @@ class WFIASImportingTask(WThreadTask):
 	- there are no single "DIVTYPE" attribute in a whole file
 	- "AOLEVEL" attribute description in documentation doesn't match the real case file. In the real file there
 	are the following levels: 1, 3, 4, 5, 6, 65, 7, 90, 91
+
+1 – уровень региона
+3 – уровень района
+35 – уровень городских и сельских поселений
+4 – уровень города
+5 – уровень внутригородской территории (устаревшее)
+6 – уровень населенного пункта
+65 – планировочная структура
+7 – уровень улицы
+90 – уровень дополнительных территорий (устаревшее)
+91 – уровень объектов на дополнительных территориях (устаревшее)
+
 
 	XML-record example:
 
@@ -82,6 +95,7 @@ class WFIASImportingTask(WThreadTask):
 	ENDDATE="2079-06-06"
 	UPDATEDATE="2011-09-13"
 	"""
+	# TODO: do not import all attributes from XML (AOID, AOGUID, PARENTGUID, FORMALNAME, SHORTNAME, AOLEVEL - must be enough)
 
 	class ImportMeta:
 		def __init__(self):
@@ -90,7 +104,8 @@ class WFIASImportingTask(WThreadTask):
 			)
 			self.__records_loaded = 0
 			self.__records_checked = 0
-			self.__start_time = utc_datetime()
+			self.__load_start_time = utc_datetime()
+			self.__import_start_time = None
 
 		def connection(self):
 			return self.__connection
@@ -107,8 +122,14 @@ class WFIASImportingTask(WThreadTask):
 		def increment_imported(self):
 			self.__records_checked += 1
 
-		def start_time(self):
-			return self.__start_time
+		def load_start_time(self):
+			return self.__load_start_time
+
+		def import_started(self):
+			self.__import_start_time = utc_datetime()
+
+		def import_start_time(self):
+			return self.__import_start_time
 
 	__import_meta__ = None
 
@@ -116,6 +137,7 @@ class WFIASImportingTask(WThreadTask):
 
 	def __init__(self):
 		WThreadTask.__init__(self, thread_name='FIAS-Import', join_on_stop=True, ready_to_stop=True,)
+		# TODO: add login and password to configuration
 
 		wsdl_url = WAppsGlobals.config['lanbilling-addresses']['wsdl_url'].strip()
 		if len(wsdl_url) == 0:
@@ -160,17 +182,24 @@ class WFIASImportingTask(WThreadTask):
 
 	@classmethod
 	def addrobj_mongo_collection(cls):
-		return WFIASImportingTask.__import_meta__.connection()['AS_ADDROBJ']
+		connection = WFIASImportingTask.__import_meta__.connection()
+		collection = connection['AS_ADDROBJ']
+		collection.create_index("AOGUID")
+		return collection
 
 	def __load_addrobj(self, entry, mongo_collection):
 		WFIASImportingTask.__import_meta__.increment_loaded()
 		mongo_collection.insert_one(dict(entry.attrib))
 		self.__cleanup_entry(entry)
 
+	@cache_control(storage=WInstanceSingletonCacheStorage(cache_record_cls=WGUIDCacheRecord))
+	def cached_ao_level(self, ao_guid, mongo_collection):
+		mongo_record = mongo_collection.find_one({'AOGUID': ao_guid})
+		return mongo_record['AOLEVEL']
+
 	def __import_addrobj(self, record, mongo_collection, rpc_object):
 		ao_level = record['AOLEVEL']
-		if ao_level in ['1', '3']:
-			WLanbillingAddressesImporter.import_address(rpc_object, record, mongo_collection)
+		WLanbillingAddressesImporter.import_address(rpc_object, record, mongo_collection)
 		WFIASImportingTask.__import_meta__.increment_imported()
 
 	def __cleanup_entry(self, entry):
@@ -187,16 +216,21 @@ class WFIASImportingTask(WThreadTask):
 
 		WFIASImportingTask.__import_meta__ = WFIASImportingTask.ImportMeta()
 
+		WAppsGlobals.log.info('Clearing cache')
+		WAddressImportCacheSingleton.storage.clear()
+
 		addrobj_mongo_collection = self.addrobj_mongo_collection()
 		WAppsGlobals.log.info('Clearing mongo-collection')
 		addrobj_mongo_collection.delete_many({})
 
+		WAppsGlobals.log.info('Loading data')
 		for entry in self.__addrobj_iterate():
 			if self.stop_event().is_set() is True:
 				WAppsGlobals.log.warn("Fias loading task terminated. Importing wasn't complete")
 				return
 			self.__load_addrobj(entry, addrobj_mongo_collection)
 		WAppsGlobals.log.info('FIAS loaded successfully. Import is starting')
+		WFIASImportingTask.__import_meta__.import_started()
 
 		if self.stop_event().is_set() is True:
 			WAppsGlobals.log.warn("Fias import terminated. Importing wasn't complete")
@@ -208,6 +242,9 @@ class WFIASImportingTask(WThreadTask):
 			self.__import_addrobj(record, addrobj_mongo_collection, self.__rpc_client)
 
 		WAppsGlobals.log.info('FIAS imported successfully')
+
+		WAppsGlobals.log.info('Clearing cache')
+		WAddressImportCacheSingleton.storage.clear()
 
 	def stop(self):
 		WAppsGlobals.log.info('FIAS import was stopped')

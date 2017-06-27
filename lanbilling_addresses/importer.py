@@ -36,9 +36,9 @@ from wasp_launcher.apps import WAppsGlobals
 from lanbilling_addresses.lanbilling import WLanbillingAddresses, WLanbillingRPC
 
 
-class WParentGUIDCacheRecord(WInstanceSingletonCacheStorage.InstanceCacheRecord):
+class WGUIDCacheRecord(WInstanceSingletonCacheStorage.InstanceCacheRecord):
 
-	__cache_size__ = 10000
+	__cache_size__ = 1000
 
 	@verify_value(decorated_function=lambda x: callable(x))
 	def __init__(self, result, decorated_function):
@@ -50,32 +50,29 @@ class WParentGUIDCacheRecord(WInstanceSingletonCacheStorage.InstanceCacheRecord)
 		return cls.__cache_size__
 
 	def update(self, result, *args, **kwargs):
-		mongo_record = args[0].mongo_record()
-		if mongo_record is not None:
-			if 'PARENTGUID' in mongo_record:
-				parent_guid = mongo_record['PARENTGUID']
-				cached_value = (parent_guid, result)
-				cache_size = self.cache_size()
-				if len(self.__result) >= cache_size:
-					self.__result = self.__result[:(cache_size - 1)]
+		guid = args[1]
+		cached_value = (guid, result)
+		cache_size = self.cache_size()
+		if len(self.__result) >= cache_size:
+			self.__result = self.__result[:(cache_size - 1)]
 
-				self.__result.insert(0, cached_value)
+		self.__result.insert(0, cached_value)
 
-	@verify_value(decorated_function=lambda x: callable(x))
-	def cache_hit(self, decorated_function, *args, **kwargs):
-		mongo_record = args[0].mongo_record()
-		if mongo_record is not None:
-			if 'PARENTGUID' in mongo_record:
-				parent_guid = mongo_record['PARENTGUID']
+	def cache_hit(self, *args, **kwargs):
+		guid = args[1]
+		for i in range(len(self.__result)):
+			cache_entry = self.__result[i]
+			if cache_entry[0] == guid:
+				result = cache_entry[1]
+				if i != 0:
+					self.__result.insert(0, self.__result.pop(i))
+				return WCacheStorage.CacheEntry(has_value=True, cached_value=result)
+		return WCacheStorage.CacheEntry()
 
-				for i in range(len(self.__result)):
-					cache_entry = self.__result[i]
-					if cache_entry[0] == parent_guid:
-						result = cache_entry[1]
-						if i != 0:
-							self.__result.insert(0, self.__result.pop(i))
-						return WCacheStorage.CacheHit(has_value=True, cached_value=result)
-		return WCacheStorage.CacheHit()
+
+class WAddressImportCacheSingleton:
+	# THIS STORAGE IS NOT THREAD SAFE!
+	storage = WInstanceSingletonCacheStorage(cache_record_cls=WGUIDCacheRecord, statistic=True)
 
 
 class WAddressPartImportAdapter(WLanbillingAddresses.AddressPart):
@@ -121,7 +118,8 @@ class WAddressPartImportAdapter(WLanbillingAddresses.AddressPart):
 			record = self.mongo_record()
 			if record is not None:
 				for key, value in fields_map.items():
-					result[key] = record[value]
+					if value in record:
+						result[key] = record[value]
 		return result
 
 	def _map_indexes(self):
@@ -178,11 +176,13 @@ class WAddressPartImportAdapter(WLanbillingAddresses.AddressPart):
 					self.mongo_recordid(recordid)
 			return recordid
 		except SOAPFault as e:
-			print('ERROR PROCESSING: ' + str(mongo_record))
+			print('ERROR PROCESSING: %s %s' % (mongo_record['AOLEVEL'], mongo_record['SHORTNAME']))
+			print(mongo_record)
 			WAppsGlobals.log.error('SOAP fault:\n' + str(e))
 		except RuntimeError as e:
-			print('ERROR PROCESSING: ' + str(mongo_record))
-			WAppsGlobals.log.error('SOAP fault:\n' + str(e))
+			print('ERROR PROCESSING: %s %s' % (mongo_record['AOLEVEL'], mongo_record['SHORTNAME']))
+			print(mongo_record)
+			WAppsGlobals.log.error('Runtime fault:\n' + str(e))
 
 	def get_parent(self):
 		record = self.mongo_record()
@@ -194,17 +194,67 @@ class WAddressPartImportAdapter(WLanbillingAddresses.AddressPart):
 			parent_guid = record['PARENTGUID']
 			return mongo_collection.find_one({'AOGUID': parent_guid})
 
-	@cache_control(storage=WInstanceSingletonCacheStorage(cache_record_cls=WParentGUIDCacheRecord))
-	def parent_id(self, parent_classes=None):
-		parent = self.get_parent()
-		adapter = WLanbillingAddressesImporter.get_part(parent)
-		if parent_classes is not None and adapter not in parent_classes:
+	@classmethod
+	@cache_control(storage=WAddressImportCacheSingleton.storage)
+	def cached_id(cls, ao_guid, lanbilling_rpc, mongo_collection, adapter_classes=None):
+		mongo_record = mongo_collection.find_one({'AOGUID': ao_guid})
+		adapter_cls = WLanbillingAddressesImporter.get_part(mongo_record)
+
+		if adapter_cls is None:
+			raise RuntimeError('No suitable adapter found')
+
+		if adapter_classes is not None and adapter_cls not in adapter_classes:
 			raise RuntimeError('Invalid parent class')
 
-		adapter = adapter(
-			self.lanbilling_rpc(), self.get_parent(), self.mongo_collection()
+		adapter = adapter_cls(
+			lanbilling_rpc, mongo_record, mongo_collection
 		)
-		return adapter.rpc_recordid(force_import=True)
+		return adapter.rpc_recordid(force_import=True), adapter
+
+	def parent_indexes(self):
+		region = 0
+		area = 0
+		city = 0
+		settle = 0
+
+		mongo_record = self.mongo_record()
+		lanbilling_rpc = self.lanbilling_rpc()
+		mongo_collection = self.mongo_collection()
+
+		if mongo_record is not None and 'PARENTGUID' in mongo_record:
+			try:
+				parent_recordid, parent_adapter = self.cached_id(
+					mongo_record['PARENTGUID'],
+					lanbilling_rpc,
+					mongo_collection
+				)
+			except:
+				print('origina record')
+				print(mongo_record)
+				raise
+
+			recurse_region, recurse_area, recurse_city, recurse_settle = parent_adapter.parent_indexes()
+
+			if isinstance(parent_adapter, WLanbillingAddressesImporter.RegionAdapter) is True:
+				region = parent_recordid
+			elif isinstance(parent_adapter, WLanbillingAddressesImporter.AreaAdapter) is True:
+				region = recurse_region
+				area = parent_recordid
+			elif isinstance(parent_adapter, WLanbillingAddressesImporter.CityAdapter) is True:
+				region = recurse_region
+				area = recurse_area
+				city = parent_recordid
+			elif isinstance(parent_adapter, WLanbillingAddressesImporter.SettleAdapter) is True:
+				region = recurse_region
+				area = recurse_area
+				city = recurse_city
+				settle = parent_recordid
+			elif parent_adapter is not None:
+				return parent_adapter.parent_indexes()
+			else:
+				raise RuntimeError('Unable to find suitable adapter: ' + str(parent_adapter))
+
+		return region, area, city, settle
 
 
 class WLanbillingAddressesImporter(WLanbillingAddresses):
@@ -228,7 +278,28 @@ class WLanbillingAddressesImporter(WLanbillingAddresses):
 			country_recordid = country_adapter.rpc_recordid(force_import=True)
 			return country_recordid
 
-	class RegionAdapter(WAddressPartImportAdapter, WLanbillingAddresses.Region):
+	class BasicAdapter(WAddressPartImportAdapter):
+
+		@verify_type(shortname_substitions=(dict, None))
+		def __init__(self, lanbilling_rpc, mongo_record, mongo_collection, shortname_substitions=None):
+			WAddressPartImportAdapter.__init__(
+				self, lanbilling_rpc, mongo_record=mongo_record, mongo_collection=mongo_collection,
+				fields_map={'name': 'FORMALNAME', 'shortname': 'SHORTNAME'}
+			)
+			self.__substitions = shortname_substitions if shortname_substitions is not None else {}
+
+		def _shortname_substitutions(self):
+			return self.__substitions
+
+		def _map_fields(self):
+			fields = WAddressPartImportAdapter._map_fields(self)
+			shortname = fields['shortname']
+			substitutions = self._shortname_substitutions()
+			if shortname in substitutions:
+				fields['shortname'] = substitutions[shortname]
+			return fields
+
+	class RegionAdapter(BasicAdapter, WLanbillingAddresses.Region):
 		"""
 		bugs found:
 
@@ -242,9 +313,8 @@ class WLanbillingAddressesImporter(WLanbillingAddresses):
 
 		@verify_type(lanbilling_rpc=WLanbillingRPC)
 		def __init__(self, lanbilling_rpc, mongo_record, mongo_collection):
-			WAddressPartImportAdapter.__init__(
-				self, lanbilling_rpc, mongo_record=mongo_record, mongo_collection=mongo_collection,
-				fields_map={'name': 'FORMALNAME', 'shortname': 'SHORTNAME'}
+			WLanbillingAddressesImporter.BasicAdapter.__init__(
+				self, lanbilling_rpc, mongo_record=mongo_record, mongo_collection=mongo_collection
 			)
 			WLanbillingAddresses.Region.__init__(self)
 
@@ -255,47 +325,124 @@ class WLanbillingAddressesImporter(WLanbillingAddresses):
 
 			return {'country': country_id}
 
-		@cache_control(storage=WInstanceSingletonCacheStorage())
-		def rpc_record(self):
-			rpc_record = WAddressPartImportAdapter.rpc_record(self)
+		def _map_fields(self):
+			fields = WLanbillingAddressesImporter.BasicAdapter._map_fields(self)
 			mongo_record = self.mongo_record()
-			if mongo_record is not None:
-				region_code = mongo_record['REGIONCODE']
-				ao_id = mongo_record['AOID']
-				if region_code == '21' and ao_id in [
-					'27b89426-1c17-4eb9-8e81-4411c8ecb069', '2001460c-9211-4732-85c2-920935b18a7c'
-				]:
-					rpc_record['name'] = 'Чувашская Республика'
-					rpc_record['shortname'] = 'Респ'
-				elif region_code == '14' and ao_id == 'd9e4c4c3-3dbe-4fc5-ac26-8e9102af5bd9':
-					rpc_record['name'] = 'Саха (Якутия)'
-			return rpc_record
+			region_code = mongo_record['REGIONCODE']
+			ao_id = mongo_record['AOID']
+			if region_code == '21' and ao_id in [
+				'27b89426-1c17-4eb9-8e81-4411c8ecb069', '2001460c-9211-4732-85c2-920935b18a7c'
+			]:
+				fields['name'] = 'Чувашская Республика'
+				fields['shortname'] = 'Респ'
+			elif region_code == '14' and ao_id == 'd9e4c4c3-3dbe-4fc5-ac26-8e9102af5bd9':
+				fields['name'] = 'Саха (Якутия)'
+			return fields
 
-	class AreaAdapter(WAddressPartImportAdapter, WLanbillingAddresses.Area):
+	class AreaAdapter(BasicAdapter, WLanbillingAddresses.Area):
 		""" Original XML file has multiple records with "SHORTNAME" field like 'г.о.', but current lanbilling
 		LTS version (19.1) doesn't support that kind of short name. It must be inserted into LBCore database
 		in order to import these records and all of theirs children.
 
 		SQL:
-		INSERT INTO address_meaning(short, name, level2) VALUES ('г.о.', 'Городской округ', 1);
+		INSERT INTO address_meaning(short, name, level_2) VALUES ('г.о.', 'Городской округ', 1);
 		"""
 
 		__required_ao_level__ = ['3']
 
 		@verify_type(lanbilling_rpc=WLanbillingRPC)
 		def __init__(self, lanbilling_rpc, mongo_record, mongo_collection):
-			WAddressPartImportAdapter.__init__(
-				self, lanbilling_rpc, mongo_record=mongo_record, mongo_collection=mongo_collection,
-				fields_map={'name': 'FORMALNAME', 'shortname': 'SHORTNAME'}
+			WLanbillingAddressesImporter.BasicAdapter.__init__(
+				self, lanbilling_rpc, mongo_record=mongo_record, mongo_collection=mongo_collection
 			)
 			WLanbillingAddresses.Area.__init__(self)
 
 		def _map_indexes(self):
-			region_id = self.parent_id(parent_classes=[WLanbillingAddressesImporter.RegionAdapter])
-			if region_id is None:
-				raise RuntimeError('Unable to find region id')
-			return {'region': region_id}
+			parent_region, parent_area, parent_city, parent_settle = self.parent_indexes()
+			return {'region': parent_region}
 
+	class CityAdapter(BasicAdapter, WLanbillingAddresses.City):
+		""" Original XML file has multiple records with "SHORTNAME" field like 'г.', but lanbilling accepts
+		 "г" only
+		"""
+
+		__required_ao_level__ = ['4']
+
+		@verify_type(lanbilling_rpc=WLanbillingRPC)
+		def __init__(self, lanbilling_rpc, mongo_record, mongo_collection):
+			WLanbillingAddressesImporter.BasicAdapter.__init__(
+				self, lanbilling_rpc, mongo_record=mongo_record, mongo_collection=mongo_collection,
+				shortname_substitions={'г.': 'г'}
+			)
+			WLanbillingAddresses.City.__init__(self)
+
+		def _map_indexes(self):
+			parent_region, parent_area, parent_city, parent_settle = self.parent_indexes()
+			return {'region': parent_region, 'area': parent_area}
+
+	class SettleAdapter(BasicAdapter, WLanbillingAddresses.Settle):
+		""" Original XML file has multiple records with "SHORTNAME" field like:
+		 - 'тер.', but lanbilling accepts "тер" only
+		 - 'тер. СНТ', but lanbilling accepts "снт" only
+
+		 Original XML file has multiple records with "SHORTNAME" field like 'тер. СПК', but current lanbilling
+		LTS version (19.1) doesn't support that kind of short name. It must be inserted into LBCore database
+		in order to import these records and all of theirs children.
+
+		SQL:
+		"""
+
+		__required_ao_level__ = ['5', '6', '90']
+
+		@verify_type(lanbilling_rpc=WLanbillingRPC)
+		def __init__(self, lanbilling_rpc, mongo_record, mongo_collection):
+			WLanbillingAddressesImporter.BasicAdapter.__init__(
+				self, lanbilling_rpc, mongo_record=mongo_record, mongo_collection=mongo_collection,
+				shortname_substitions={'тер.': 'тер', 'тер. СНТ': 'снт'}
+			)
+			WLanbillingAddresses.Settle.__init__(self)
+
+		def _map_indexes(self):
+			parent_region, parent_area, parent_city, parent_settle  = self.parent_indexes()
+			return {'region': parent_region, 'area': parent_area, 'city': parent_city}
+
+	class StreetAdapter(BasicAdapter, WLanbillingAddresses.Street):
+		'''
+
+		SQL:
+		#INSERT INTO address_meaning(short, name, level_5) VALUES ('днт', 'Дачное некоммерческое товарищество', 1);
+		#INSERT INTO address_meaning(short, name, level_5) VALUES ('тсн', 'Товарищество собственников недвижимости', 1);
+		#INSERT INTO address_meaning(short, name, level_5) VALUES ('спк', 'Сельскохозяйственный производственный кооператив', 1);
+		#INSERT INTO address_meaning(short, name, level_5) VALUES ('дпк', 'Дачный потребительский кооператив', 1);
+		#INSERT INTO address_meaning(short, name, level_5) VALUES ('ряд', 'Ряд', 1);
+		'''
+		__required_ao_level__ = ['65', '7', '91']
+
+		@verify_type(lanbilling_rpc=WLanbillingRPC)
+		def __init__(self, lanbilling_rpc, mongo_record, mongo_collection):
+			WLanbillingAddressesImporter.BasicAdapter.__init__(
+				self, lanbilling_rpc, mongo_record=mongo_record, mongo_collection=mongo_collection,
+				shortname_substitions={
+					'тер. ДНТ': 'днт', 'тер. ТСН': 'тсн', 'пр-д': 'проезд', 'ал.': 'аллея',
+					'пер.': 'пер', 'ш.': 'ш', 'туп.': 'туп', 'пл.': 'пл', 'наб.': 'наб',
+					'тер. СНТ': 'снт', 'тер. СПК': 'спк', 'тер. ДПК': 'дпк', 'тер.': 'тер',
+					'тер. ОПК': 'тер', 'тер. ОНТ': 'тер', 'тер. ГСК': 'гск', 'мкр.': 'мкр',
+					'тер.ф.х.': 'ф/х', 'лн.': 'линия', 'тер. ДНП': 'днп'
+				}
+			)
+			WLanbillingAddresses.Street.__init__(self)
+
+		def _map_indexes(self):
+			parent_region, parent_area, parent_city, parent_settle = self.parent_indexes()
+			return {'region': parent_region, 'city': parent_city, 'settl': parent_settle}
+
+		def _map_fields(self):
+			fields = WLanbillingAddressesImporter.BasicAdapter._map_fields(self)
+			if 'idx' in fields:
+				fields['idx'] = int(fields['idx'])
+			else:
+				fields['idx'] = 0
+			return fields
 
 	@classmethod
 	def get_part(cls, mongo_record):
@@ -303,13 +450,13 @@ class WLanbillingAddressesImporter(WLanbillingAddresses):
 		parts_map = {
 			"1": WLanbillingAddressesImporter.RegionAdapter,
 			"3": WLanbillingAddressesImporter.AreaAdapter,
-			# "4": WLanbillingAddresses.City,
-			# "5": WLanbillingAddresses.Settle,
-			# "6": WLanbillingAddresses.Settle,
-			# "65": WLanbillingAddresses.Settle,
-			# "7": WLanbillingAddresses.Street,
-			# "90": WLanbillingAddresses.Settle,
-			# "91": WLanbillingAddresses.Street
+			"4": WLanbillingAddressesImporter.CityAdapter,
+			"5": WLanbillingAddressesImporter.SettleAdapter,
+			"6": WLanbillingAddressesImporter.SettleAdapter,
+			"65": WLanbillingAddressesImporter.StreetAdapter,
+			"7": WLanbillingAddressesImporter.StreetAdapter,
+			"90": WLanbillingAddressesImporter.SettleAdapter,
+			"91": WLanbillingAddressesImporter.StreetAdapter,
 		}
 
 		aolevel = mongo_record['AOLEVEL']

@@ -30,12 +30,14 @@ from lanbilling_addresses.version import __status__
 import os
 import signal
 
+from wasp_general.datetime import utc_datetime
 from wasp_general.task.scheduler.proto import WScheduledTask
 from wasp_general.command.command import WCommand, WCommandResult
 
 from wasp_launcher.apps import WCronTasks, WBrokerCommands, WGuestApp
 
 from lanbilling_addresses.task import WFIASImportingTask
+from lanbilling_addresses.importer import WAddressImportCacheSingleton, WGUIDCacheRecord
 
 
 class WFIASScheduledTask(WFIASImportingTask, WScheduledTask):
@@ -77,10 +79,34 @@ class WAddressesImportCommands:
 
 			mongo_count = WFIASImportingTask.addrobj_mongo_collection().count()
 
-			output = 'Import started at: %s UTC\n' % WFIASImportingTask.__import_meta__.start_time()
-			output += 'Records loaded: %i\n' % WFIASImportingTask.__import_meta__.records_loaded()
+			load_start = WFIASImportingTask.__import_meta__.load_start_time()
+			records_loaded = WFIASImportingTask.__import_meta__.records_loaded()
+			output = 'Load started at: %s UTC\n' % load_start
+			output += 'Records loaded: %i\n' % records_loaded
+
+			import_start = WFIASImportingTask.__import_meta__.import_start_time()
+			load_duration = (import_start if import_start is not None else utc_datetime()) - load_start
+			load_rate = records_loaded / load_duration.total_seconds()
+			output += 'Loading rate: {:.4f} records per second\n'.format(load_rate)
+
 			output += 'Records at the mongo database: %i\n' % mongo_count
-			output += 'Records imported: %i' % WFIASImportingTask.__import_meta__.records_imported()
+
+			if import_start is not None:
+				output += 'Import started at: %s UTC\n' % import_start
+				output += 'Records imported: %i\n' % WFIASImportingTask.__import_meta__.records_imported()
+
+				records_imported = WFIASImportingTask.__import_meta__.records_imported()
+				import_duration = utc_datetime() - import_start
+				import_rate = records_imported / import_duration.total_seconds()
+				output += 'Import rate: {:.4f} records per second\n'.format(import_rate)
+
+				cache_hit = WAddressImportCacheSingleton.storage.cache_hit()
+				cache_missed = WAddressImportCacheSingleton.storage.cache_missed()
+				total_tries = cache_hit + cache_missed
+				hit_rate = cache_hit / total_tries
+				output += 'Cache hit rate: {:.4f} (total tries: {:.4f}). Cache size: {:d} records'.format(hit_rate, total_tries, WGUIDCacheRecord.cache_size())
+			else:
+				output += "Import doesn't started"
 
 			return WCommandResult(output=output)
 

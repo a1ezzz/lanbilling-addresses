@@ -174,47 +174,33 @@ class WLanbillingAddresses:
 			)
 
 	class City(AddressPart):
-		"""
-		SOAP-object:
-
-		recordid - long
-		region - long
-		area - long
-		name - str
-		shortname - str
-		"""
-
 		def __init__(self):
 			WLanbillingAddresses.AddressPart.__init__(self, 'insupdAddressCity', 'getAddressCities')
 
+		@verify_type(lanbilling_rpc=WLanbillingRPC, recordid=(int, None), region=int, area=int, name=str, shortname=str)
+		def update(self, lanbilling_rpc, region=None, name=None, shortname=None, **fields):
+			return WLanbillingAddresses.AddressPart.update(
+				self, lanbilling_rpc, region=region, name=name, shortname=shortname, **fields
+			)
+
 
 	class Settle(AddressPart):
-		"""
-		SOAP-object:
-
-		recordid - long
-		region - long
-		area - long
-		city - long
-		name - str
-		shortname - str
-		"""
 
 		def __init__(self):
 			WLanbillingAddresses.AddressPart.__init__(self, 'insupdAddressSettle', 'getAddressSettles')
 
+		@verify_type(lanbilling_rpc=WLanbillingRPC, recordid=(int, None), region=int, area=int, city=int, name=str, shortname=str)
+		def update(self, lanbilling_rpc, region=None, name=None, shortname=None, **fields):
+			return WLanbillingAddresses.AddressPart.update(
+				self, lanbilling_rpc, region=region, name=name, shortname=shortname, **fields
+			)
+
 	class Street(AddressPart):
-		"""
-		SOAP-object
-
-		recordid - long
-		region - long
-		city - long
-		settl - long
-		idx - long (index)
-		name - str
-		shortname - str
-		"""
-
 		def __init__(self):
 			WLanbillingAddresses.AddressPart.__init__(self, 'insupdAddressStreet', 'getAddressStreets')
+
+		@verify_type(lanbilling_rpc=WLanbillingRPC, recordid=(int, None), region=int, city=int, settl=int, idx=int, name=str, shortname=str)
+		def update(self, lanbilling_rpc, region=None, name=None, shortname=None, **fields):
+			return WLanbillingAddresses.AddressPart.update(
+				self, lanbilling_rpc, region=region, name=name, shortname=shortname, **fields
+			)
