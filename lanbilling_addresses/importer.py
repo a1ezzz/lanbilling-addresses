@@ -40,7 +40,7 @@ class WGUIDCacheRecord(WInstanceSingletonCacheStorage.InstanceCacheRecord):
 
 	__cache_size__ = 100
 
-	@verify_value(decorated_function=lambda x: callable(x))
+	@verify_value('paranoid', decorated_function=lambda x: callable(x))
 	def __init__(self, result, decorated_function):
 		WInstanceSingletonCacheStorage.InstanceCacheRecord.__init__(self, result, decorated_function)
 		self.__result = [result]
@@ -184,20 +184,10 @@ class WAddressPartImportAdapter(WLanbillingAddresses.AddressPart):
 			print(mongo_record)
 			WAppsGlobals.log.error('Runtime fault:\n' + str(e))
 
-	def get_parent(self):
-		record = self.mongo_record()
-		mongo_collection = self.mongo_collection()
-		if record is None or mongo_collection is None:
-			raise RuntimeError('No mongo record or collection was specified')
-
-		if 'PARENTGUID' in record:
-			parent_guid = record['PARENTGUID']
-			return mongo_collection.find_one({'AOGUID': parent_guid})
-
 	@classmethod
 	@cache_control(storage=WAddressImportCacheSingleton.storage)
 	def cached_id(cls, ao_guid, lanbilling_rpc, mongo_collection, adapter_classes=None):
-		mongo_record = mongo_collection.find_one({'AOGUID': ao_guid})
+		mongo_record = mongo_collection.find_one({'AOGUID': ao_guid, 'ACTSTATUS': '1'})
 		adapter_cls = WLanbillingAddressesImporter.get_part(mongo_record)
 
 		if adapter_cls is None:
@@ -263,7 +253,7 @@ class WLanbillingAddressesImporter(WLanbillingAddresses):
 
 		__country_name__ = 'Российская Федерация'
 
-		@verify_type(lanbilling_rpc=WLanbillingRPC)
+		@verify_type('paranoid', lanbilling_rpc=WLanbillingRPC)
 		def __init__(self, lanbilling_rpc):
 			WAddressPartImportAdapter.__init__(self, lanbilling_rpc)
 			WLanbillingAddresses.Country.__init__(self)
@@ -272,7 +262,7 @@ class WLanbillingAddressesImporter(WLanbillingAddresses):
 			return {'name': WLanbillingAddressesImporter.CountryAdapter.__country_name__}
 
 		@staticmethod
-		@verify_type(lanbilling_rpc=WLanbillingRPC)
+		@verify_type('paranoid', lanbilling_rpc=WLanbillingRPC)
 		def country_id(lanbilling_rpc):
 			country_adapter = WLanbillingAddressesImporter.CountryAdapter(lanbilling_rpc)
 			country_recordid = country_adapter.rpc_recordid(force_import=True)
@@ -311,7 +301,7 @@ class WLanbillingAddressesImporter(WLanbillingAddresses):
 
 		__required_ao_level__ = ['1']
 
-		@verify_type(lanbilling_rpc=WLanbillingRPC)
+		@verify_type('paranoid', lanbilling_rpc=WLanbillingRPC)
 		def __init__(self, lanbilling_rpc, mongo_record, mongo_collection):
 			WLanbillingAddressesImporter.BasicAdapter.__init__(
 				self, lanbilling_rpc, mongo_record=mongo_record, mongo_collection=mongo_collection
@@ -328,14 +318,13 @@ class WLanbillingAddressesImporter(WLanbillingAddresses):
 		def _map_fields(self):
 			fields = WLanbillingAddressesImporter.BasicAdapter._map_fields(self)
 			mongo_record = self.mongo_record()
-			region_code = mongo_record['REGIONCODE']
 			ao_id = mongo_record['AOID']
-			if region_code == '21' and ao_id in [
+			if ao_id in [
 				'27b89426-1c17-4eb9-8e81-4411c8ecb069', '2001460c-9211-4732-85c2-920935b18a7c'
 			]:
 				fields['name'] = 'Чувашская Республика'
 				fields['shortname'] = 'Респ'
-			elif region_code == '14' and ao_id == 'd9e4c4c3-3dbe-4fc5-ac26-8e9102af5bd9':
+			elif ao_id == 'd9e4c4c3-3dbe-4fc5-ac26-8e9102af5bd9':
 				fields['name'] = 'Саха (Якутия)'
 			return fields
 
@@ -350,7 +339,7 @@ class WLanbillingAddressesImporter(WLanbillingAddresses):
 
 		__required_ao_level__ = ['3']
 
-		@verify_type(lanbilling_rpc=WLanbillingRPC)
+		@verify_type('paranoid', lanbilling_rpc=WLanbillingRPC)
 		def __init__(self, lanbilling_rpc, mongo_record, mongo_collection):
 			WLanbillingAddressesImporter.BasicAdapter.__init__(
 				self, lanbilling_rpc, mongo_record=mongo_record, mongo_collection=mongo_collection
@@ -368,7 +357,7 @@ class WLanbillingAddressesImporter(WLanbillingAddresses):
 
 		__required_ao_level__ = ['4']
 
-		@verify_type(lanbilling_rpc=WLanbillingRPC)
+		@verify_type('paranoid', lanbilling_rpc=WLanbillingRPC)
 		def __init__(self, lanbilling_rpc, mongo_record, mongo_collection):
 			WLanbillingAddressesImporter.BasicAdapter.__init__(
 				self, lanbilling_rpc, mongo_record=mongo_record, mongo_collection=mongo_collection,
@@ -394,7 +383,7 @@ class WLanbillingAddressesImporter(WLanbillingAddresses):
 
 		__required_ao_level__ = ['5', '6', '90']
 
-		@verify_type(lanbilling_rpc=WLanbillingRPC)
+		@verify_type('paranoid', lanbilling_rpc=WLanbillingRPC)
 		def __init__(self, lanbilling_rpc, mongo_record, mongo_collection):
 			WLanbillingAddressesImporter.BasicAdapter.__init__(
 				self, lanbilling_rpc, mongo_record=mongo_record, mongo_collection=mongo_collection,
@@ -418,7 +407,7 @@ class WLanbillingAddressesImporter(WLanbillingAddresses):
 		'''
 		__required_ao_level__ = ['65', '7', '91']
 
-		@verify_type(lanbilling_rpc=WLanbillingRPC)
+		@verify_type('paranoid', lanbilling_rpc=WLanbillingRPC)
 		def __init__(self, lanbilling_rpc, mongo_record, mongo_collection):
 			WLanbillingAddressesImporter.BasicAdapter.__init__(
 				self, lanbilling_rpc, mongo_record=mongo_record, mongo_collection=mongo_collection,
@@ -471,7 +460,7 @@ class WLanbillingAddressesImporter(WLanbillingAddresses):
 		return part
 
 	@classmethod
-	@verify_type(lanbilling_rpc=WLanbillingRPC)
+	@verify_type('paranoid', lanbilling_rpc=WLanbillingRPC)
 	def import_address(cls, lanbilling_rpc, mongo_record, mongo_collection):
 		part = cls.get_part(mongo_record)
 		part = part(lanbilling_rpc, mongo_record=mongo_record, mongo_collection=mongo_collection)
