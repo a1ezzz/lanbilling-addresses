@@ -136,7 +136,11 @@ class WLanbillingAddresses:
 
 		@verify_type(lanbilling_rpc=WLanbillingRPC, recordid=(int, None))
 		def get(self, lanbilling_rpc, **fields):
-			method = getattr(lanbilling_rpc.rpc(), self.get_method())
+			return self._get(self.get_method(), lanbilling_rpc, **fields)
+
+		@classmethod
+		def _get(cls, method_name, lanbilling_rpc, **fields):
+			method = getattr(lanbilling_rpc.rpc(), method_name)
 			args = {}
 			args.update(fields)
 			return method(args)

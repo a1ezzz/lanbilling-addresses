@@ -37,7 +37,7 @@ from wasp_general.command.command import WCommand, WCommandResult
 from wasp_launcher.apps import WCronTasks, WBrokerCommands, WGuestApp
 
 from lanbilling_addresses.task import WFIASExportingTask, WFIASTaskStatus
-from lanbilling_addresses.importer import WAddressImportCacheSingleton, WGUIDCacheRecord
+from lanbilling_addresses.importer import WAddressImportCacheSingleton, WGUIDCacheRecord, WRPCCacheRecord
 
 
 class WFIASScheduledTask(WFIASExportingTask, WScheduledTask):
@@ -107,11 +107,18 @@ class WAddressesImportCommands:
 				import_rate = records_imported / import_duration.total_seconds()
 				output += 'Import rate: {:.4f} records per second\n'.format(import_rate)
 
-				cache_hit = WAddressImportCacheSingleton.storage.cache_hit()
-				cache_missed = WAddressImportCacheSingleton.storage.cache_missed()
+				cache_hit = WAddressImportCacheSingleton.guid_cache.cache_hit()
+				cache_missed = WAddressImportCacheSingleton.guid_cache.cache_missed()
 				total_tries = cache_hit + cache_missed
 				hit_rate = cache_hit / total_tries
-				output += 'Cache hit rate: {:.4f} (total tries: {:d}). Cache size: {:d} records'.format(hit_rate, total_tries, WGUIDCacheRecord.cache_size())
+				output += 'GUID Cache hit rate: {:.4f} (total tries: {:d}). Cache size: {:d} records\n'.format(hit_rate, total_tries, WGUIDCacheRecord.cache_size())
+
+				cache_hit = WAddressImportCacheSingleton.rpc_cache.cache_hit()
+				cache_missed = WAddressImportCacheSingleton.rpc_cache.cache_missed()
+				total_tries = cache_hit + cache_missed
+				hit_rate = cache_hit / total_tries
+				output += 'RPC GET Cache hit rate: {:.4f} (total tries: {:d}). Cache size: {:d} records'.format(hit_rate, total_tries, WRPCCacheRecord.cache_size())
+
 			else:
 				output += "Import doesn't started"
 

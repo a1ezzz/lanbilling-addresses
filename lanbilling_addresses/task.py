@@ -208,7 +208,8 @@ class WFIASAddrObjExportingTask(WFIASAddrObjBasicTask):
 		WFIASTaskStatus.__addrobj_exporting_status__ = WFIASTaskStatus()
 
 		WAppsGlobals.log.info('Clearing cache')
-		WAddressImportCacheSingleton.storage.clear()
+		WAddressImportCacheSingleton.guid_cache.clear()
+		WAddressImportCacheSingleton.rpc_cache.clear()
 
 		mongo_collection = self.mongo_collection()
 
@@ -221,7 +222,8 @@ class WFIASAddrObjExportingTask(WFIASAddrObjBasicTask):
 		WAppsGlobals.log.info('FIAS imported successfully')
 
 		WAppsGlobals.log.info('Clearing cache')
-		WAddressImportCacheSingleton.storage.clear()
+		WAddressImportCacheSingleton.guid_cache.clear()
+		WAddressImportCacheSingleton.rpc_cache.clear()
 
 
 class WFIASExportingTask(WThreadedTaskChain):

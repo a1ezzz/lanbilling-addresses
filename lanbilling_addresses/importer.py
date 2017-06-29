@@ -38,7 +38,7 @@ from lanbilling_addresses.lanbilling import WLanbillingAddresses, WLanbillingRPC
 
 class WGUIDCacheRecord(WInstanceSingletonCacheStorage.InstanceCacheRecord):
 
-	__cache_size__ = 100
+	__cache_size__ = 50
 
 	@verify_value('paranoid', decorated_function=lambda x: callable(x))
 	def __init__(self, result, decorated_function):
@@ -58,7 +58,7 @@ class WGUIDCacheRecord(WInstanceSingletonCacheStorage.InstanceCacheRecord):
 
 		self.__result.insert(0, cached_value)
 
-	def cache_hit(self, *args, **kwargs):
+	def cache_entry(self, *args, **kwargs):
 		guid = args[1]
 		for i in range(len(self.__result)):
 			cache_entry = self.__result[i]
@@ -70,9 +70,55 @@ class WGUIDCacheRecord(WInstanceSingletonCacheStorage.InstanceCacheRecord):
 		return WCacheStorage.CacheEntry()
 
 
+class WRPCCacheRecord(WInstanceSingletonCacheStorage.InstanceCacheRecord):
+
+	__cache_size__ = 100
+
+	def __init__(self, result, decorated_function, *args, **kwargs):
+		WInstanceSingletonCacheStorage.InstanceCacheRecord.__init__(self, result, decorated_function)
+		self.__result = []
+		self.update(result, *args, **kwargs)
+
+	@classmethod
+	def cache_size(cls):
+		return cls.__cache_size__
+
+	def update(self, result, *args, **kwargs):
+		method_name = args[1]
+		fields = dict(kwargs)
+
+		cached_value = (method_name, fields, result)
+		cache_size = self.cache_size()
+		if len(self.__result) >= cache_size:
+			self.__result = self.__result[:(cache_size - 1)]
+
+		self.__result.insert(0, cached_value)
+
+	def cache_entry(self, *args, **kwargs):
+
+		method_name = args[1]
+		fields = dict(kwargs)
+
+		for i in range(len(self.__result)):
+			cache_entry = self.__result[i]
+			if cache_entry[0] == method_name and cache_entry[1] == fields:
+				result = cache_entry[2]
+				if i != 0:
+					self.__result.insert(0, self.__result.pop(i))
+				return WCacheStorage.CacheEntry(has_value=True, cached_value=result)
+		return WCacheStorage.CacheEntry()
+
+	@classmethod
+	@verify_value('paranoid', decorated_function=lambda x: callable(x))
+	def create(cls, result, decorated_function, *args, **kwargs):
+		return cls(result, decorated_function, *args, **kwargs)
+
+
 class WAddressImportCacheSingleton:
 	# THIS STORAGE IS NOT THREAD SAFE!
-	storage = WInstanceSingletonCacheStorage(cache_record_cls=WGUIDCacheRecord, statistic=True)
+	guid_cache = WInstanceSingletonCacheStorage(cache_record_cls=WGUIDCacheRecord, statistic=True)
+	# THIS STORAGE IS NOT THREAD SAFE!
+	rpc_cache = WInstanceSingletonCacheStorage(cache_record_cls=WRPCCacheRecord, statistic=True)
 
 
 class WAddressPartImportAdapter(WLanbillingAddresses.AddressPart):
@@ -130,7 +176,7 @@ class WAddressPartImportAdapter(WLanbillingAddresses.AddressPart):
 		record = self.mongo_record()
 		if '__recordid' in record:
 			return record['__recordid']
-		if value is not None:
+		if value is not None and ('__recordid' not in record or record['__recordid'] != value):
 			mongo_collection = self.mongo_collection()
 			if mongo_collection is not None:
 				mongo_collection.update_one({'_id': record['_id']}, {'$set': {'__recordid': value}})
@@ -138,8 +184,7 @@ class WAddressPartImportAdapter(WLanbillingAddresses.AddressPart):
 			else:
 				raise RuntimeError('No mongo collection was specified')
 
-	@verify_type(force_import=bool)
-	def rpc_recordid(self, force_import=False):
+	def rpc_recordid(self):
 		lanbilling_rpc = self.lanbilling_rpc()
 		rpc_record = self.rpc_record()
 		result = self.get(lanbilling_rpc, **rpc_record)
@@ -156,8 +201,7 @@ class WAddressPartImportAdapter(WLanbillingAddresses.AddressPart):
 			return result[0]['recordid']
 		elif len(result) > 1:
 			raise RuntimeError('Multiple entries found')
-		elif force_import is True:
-			return self.import_record()
+		return self.update(lanbilling_rpc, **rpc_record)
 
 	def import_record(self):
 		mongo_record = self.mongo_record()
@@ -170,10 +214,8 @@ class WAddressPartImportAdapter(WLanbillingAddresses.AddressPart):
 					return mongo_recordid
 
 			recordid = self.rpc_recordid()
-			if recordid is None:
-				recordid = self.update(self.lanbilling_rpc(), **self.rpc_record())
-				if mongo_record is not None and mongo_collection is not None:
-					self.mongo_recordid(recordid)
+			if mongo_record is not None and mongo_collection is not None:
+				self.mongo_recordid(recordid)
 			return recordid
 		except SOAPFault as e:
 			print('ERROR PROCESSING: %s %s' % (mongo_record['AOLEVEL'], mongo_record['SHORTNAME']))
@@ -185,7 +227,7 @@ class WAddressPartImportAdapter(WLanbillingAddresses.AddressPart):
 			WAppsGlobals.log.error('Runtime fault:\n' + str(e))
 
 	@classmethod
-	@cache_control(storage=WAddressImportCacheSingleton.storage)
+	@cache_control(storage=WAddressImportCacheSingleton.guid_cache)
 	def cached_id(cls, ao_guid, lanbilling_rpc, mongo_collection, adapter_classes=None):
 		mongo_record = mongo_collection.find_one({'AOGUID': ao_guid, 'ACTSTATUS': '1'})
 		adapter_cls = WLanbillingAddressesImporter.get_part(mongo_record)
@@ -199,7 +241,12 @@ class WAddressPartImportAdapter(WLanbillingAddresses.AddressPart):
 		adapter = adapter_cls(
 			lanbilling_rpc, mongo_record, mongo_collection
 		)
-		return adapter.rpc_recordid(force_import=True), adapter
+		return adapter.rpc_recordid(), adapter
+
+	@classmethod
+	@cache_control(storage=WAddressImportCacheSingleton.rpc_cache)
+	def _get(cls, method_name, lanbilling_rpc, **fields):
+		return WLanbillingAddresses.AddressPart._get(method_name, lanbilling_rpc, **fields)
 
 	def parent_indexes(self):
 		region = 0
@@ -265,7 +312,7 @@ class WLanbillingAddressesImporter(WLanbillingAddresses):
 		@verify_type('paranoid', lanbilling_rpc=WLanbillingRPC)
 		def country_id(lanbilling_rpc):
 			country_adapter = WLanbillingAddressesImporter.CountryAdapter(lanbilling_rpc)
-			country_recordid = country_adapter.rpc_recordid(force_import=True)
+			country_recordid = country_adapter.rpc_recordid()
 			return country_recordid
 
 	class BasicAdapter(WAddressPartImportAdapter):
