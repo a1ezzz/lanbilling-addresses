@@ -50,7 +50,10 @@ class WFIASScheduledTask(WFIASExportingTask, WScheduledTask):
 class WAddressesImportingCronTask(WCronTasks):
 
 	__registry_tag__ = 'com.binblob.lanbilling-addresses.cron-app.fias-import'
-	__cron_tasks__ = [WFIASScheduledTask()]
+
+	@classmethod
+	def _cron_tasks(cls):
+		return [WFIASScheduledTask()]
 
 
 class WAddressesImportTask(WGuestApp, WFIASExportingTask):
