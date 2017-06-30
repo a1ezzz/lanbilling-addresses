@@ -115,40 +115,35 @@ class WLanbillingAddresses:
 
 	class AddressPart:
 
-		@verify_type(update_method=str, get_method=str)
-		@verify_value(update_method=lambda x: len(x) > 0, get_method=lambda x: len(x) > 0)
-		def __init__(self, update_method, get_method):
-			self.__update_method = update_method
-			self.__get_method = get_method
+		__update_method__ = None
+		__get_method__ = None
 
 		def update_method(self):
-			return self.__update_method
+			return self.__update_method__
 
 		def get_method(self):
-			return self.__get_method
+			return self.__get_method__
 
+		@classmethod
 		@verify_type(lanbilling_rpc=WLanbillingRPC, recordid=(int, None))
-		def update(self, lanbilling_rpc, **fields):
-			method = getattr(lanbilling_rpc.rpc(), self.update_method())
+		def update(cls, lanbilling_rpc, **fields):
+			method = getattr(lanbilling_rpc.rpc(), cls.__update_method__)
 			args = {'recordid': 0}
 			args.update(fields)
 			return method(0, args)
 
-		@verify_type(lanbilling_rpc=WLanbillingRPC, recordid=(int, None))
-		def get(self, lanbilling_rpc, **fields):
-			return self._get(self.get_method(), lanbilling_rpc, **fields)
-
 		@classmethod
-		def _get(cls, method_name, lanbilling_rpc, **fields):
-			method = getattr(lanbilling_rpc.rpc(), method_name)
+		@verify_type(lanbilling_rpc=WLanbillingRPC, recordid=(int, None))
+		def get(cls, lanbilling_rpc, **fields):
+			method = getattr(lanbilling_rpc.rpc(), cls.__get_method__)
 			args = {}
 			args.update(fields)
 			return method(args)
 
 	class Country(AddressPart):
 
-		def __init__(self):
-			WLanbillingAddresses.AddressPart.__init__(self, 'insupdAddressCountry', 'getAddressCountries')
+		__update_method__ = 'insupdAddressCountry'
+		__get_method__ = 'getAddressCountries'
 
 		@verify_type('paranoid', lanbilling_rpc=WLanbillingRPC)
 		@verify_type(recordid=(int, None), name=str)
@@ -157,9 +152,8 @@ class WLanbillingAddresses:
 
 
 	class Region(AddressPart):
-
-		def __init__(self):
-			WLanbillingAddresses.AddressPart.__init__(self, 'insupdAddressRegion', 'getAddressRegions')
+		__update_method__ = 'insupdAddressRegion'
+		__get_method__ = 'getAddressRegions'
 
 		@verify_type('paranoid', lanbilling_rpc=WLanbillingRPC)
 		@verify_type(recordid=(int, None), country=int, name=str, shortname=str)
@@ -169,9 +163,8 @@ class WLanbillingAddresses:
 			)
 
 	class Area(AddressPart):
-
-		def __init__(self):
-			WLanbillingAddresses.AddressPart.__init__(self, 'insupdAddressArea', 'getAddressAreas')
+		__update_method__ = 'insupdAddressArea'
+		__get_method__ = 'getAddressAreas'
 
 		@verify_type('paranoid', lanbilling_rpc=WLanbillingRPC)
 		@verify_type(recordid=(int, None), region=int, name=str, shortname=str)
@@ -181,8 +174,9 @@ class WLanbillingAddresses:
 			)
 
 	class City(AddressPart):
-		def __init__(self):
-			WLanbillingAddresses.AddressPart.__init__(self, 'insupdAddressCity', 'getAddressCities')
+
+		__update_method__ = 'insupdAddressArea'
+		__get_method__ = 'getAddressAreas'
 
 		@verify_type('paranoid', lanbilling_rpc=WLanbillingRPC)
 		@verify_type(recordid=(int, None), region=int, area=int, name=str, shortname=str)
@@ -193,8 +187,8 @@ class WLanbillingAddresses:
 
 	class Settle(AddressPart):
 
-		def __init__(self):
-			WLanbillingAddresses.AddressPart.__init__(self, 'insupdAddressSettle', 'getAddressSettles')
+		__update_method__ = 'insupdAddressSettle'
+		__get_method__ = 'getAddressSettles'
 
 		@verify_type('paranoid', lanbilling_rpc=WLanbillingRPC)
 		@verify_type(recordid=(int, None), region=int, area=int, city=int, name=str, shortname=str)
@@ -204,8 +198,9 @@ class WLanbillingAddresses:
 			)
 
 	class Street(AddressPart):
-		def __init__(self):
-			WLanbillingAddresses.AddressPart.__init__(self, 'insupdAddressStreet', 'getAddressStreets')
+
+		__update_method__ = 'insupdAddressStreet'
+		__get_method__ = 'getAddressStreets'
 
 		@verify_type('paranoid', lanbilling_rpc=WLanbillingRPC)
 		@verify_type(recordid=(int, None), region=int, city=int, settl=int, idx=int, name=str, shortname=str)

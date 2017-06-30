@@ -34,17 +34,21 @@ from wasp_general.datetime import utc_datetime
 from wasp_general.task.scheduler.proto import WScheduledTask
 from wasp_general.command.command import WCommand, WCommandResult
 
-from wasp_launcher.apps import WCronTasks, WBrokerCommands, WGuestApp
+from wasp_launcher.apps import WCronTasks, WBrokerCommands, WGuestApp, WThreadTaskLoggingHandler
 
 from lanbilling_addresses.task import WFIASExportingTask, WFIASTaskStatus
-from lanbilling_addresses.importer import WAddressImportCacheSingleton, WGUIDCacheRecord, WRPCCacheRecord
+from lanbilling_addresses.importer import WAddressImportCacheSingleton, WGUIDCacheRecord
 
 
-class WFIASScheduledTask(WFIASExportingTask, WScheduledTask):
+class WFIASScheduledTask(WFIASExportingTask, WScheduledTask, WThreadTaskLoggingHandler):
 
 	def __init__(self):
 		WFIASExportingTask.__init__(self)
 		WScheduledTask.__init__(self, thread_name_suffix='FIAS-import')
+		WThreadTaskLoggingHandler.__init__(self)
+
+	def thread_exception(self, raised_exception):
+		WThreadTaskLoggingHandler.thread_exception(self, raised_exception)
 
 
 class WAddressesImportingCronTask(WCronTasks):
@@ -66,10 +70,15 @@ class WAddressesImportTask(WGuestApp, WFIASExportingTask):
 
 	def thread_started(self):
 		WFIASExportingTask.thread_started(self)
-		os.kill(os.getpid(), signal.SIGINT)
+		if self.stop_event() is False:
+			os.kill(os.getpid(), signal.SIGINT)
 
 	def stop(self):
 		WFIASExportingTask.stop(self)
+
+	def thread_exception(self, raised_exception):
+		WFIASExportingTask.thread_exception(self, raised_exception)
+		os.kill(os.getpid(), signal.SIGINT)
 
 
 class WAddressesImportCommands:
@@ -113,14 +122,14 @@ class WAddressesImportCommands:
 				cache_hit = WAddressImportCacheSingleton.guid_cache.cache_hit()
 				cache_missed = WAddressImportCacheSingleton.guid_cache.cache_missed()
 				total_tries = cache_hit + cache_missed
-				hit_rate = cache_hit / total_tries
+				hit_rate = cache_hit / total_tries if total_tries > 0 else total_tries
 				output += 'GUID Cache hit rate: {:.4f} (total tries: {:d}). Cache size: {:d} records\n'.format(hit_rate, total_tries, WGUIDCacheRecord.cache_size())
 
 				cache_hit = WAddressImportCacheSingleton.rpc_cache.cache_hit()
 				cache_missed = WAddressImportCacheSingleton.rpc_cache.cache_missed()
 				total_tries = cache_hit + cache_missed
-				hit_rate = cache_hit / total_tries
-				output += 'RPC GET Cache hit rate: {:.4f} (total tries: {:d}). Cache size: {:d} records'.format(hit_rate, total_tries, WRPCCacheRecord.cache_size())
+				hit_rate = cache_hit / total_tries if total_tries > 0 else total_tries
+				output += 'RPC GET Cache hit rate: {:.4f} (total tries: {:d}). Cache size: {:d} records'.format(hit_rate, total_tries, WAddressImportCacheSingleton.rpc_cache.cache_size())
 
 			else:
 				output += "Import doesn't started"

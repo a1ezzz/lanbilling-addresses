@@ -35,7 +35,7 @@ from wasp_general.task.thread import WThreadTask, WThreadedTaskChain
 from wasp_general.datetime import utc_datetime
 from wasp_general.verify import verify_type
 
-from wasp_launcher.apps import WAppsGlobals
+from wasp_launcher.apps import WAppsGlobals, WThreadTaskLoggingHandler
 from wasp_launcher.mongodb import WMongoConnection
 
 from lanbilling_addresses.lanbilling import WLanbillingRPC
@@ -68,9 +68,10 @@ class WFIASTaskStatus:
 		WFIASTaskStatus.__addrobj_exporting_status__ = None
 
 
-class WFIASAddrObjBasicTask(WThreadTask):
+class WFIASAddrObjBasicTask(WThreadTaskLoggingHandler, WThreadTask):
 
 	def __init__(self, mongo_connection, thread_name):
+		WThreadTaskLoggingHandler.__init__(self)
 		WThreadTask.__init__(self, thread_name=thread_name, join_on_stop=True, ready_to_stop=True)
 		self.__mongo_connection = mongo_connection
 
@@ -143,6 +144,7 @@ class WFIASAddrObjLoadingTask(WFIASAddrObjBasicTask):
 
 	def thread_started(self):
 		WAppsGlobals.log.info('Loading data from FIAS XML')
+
 		if WFIASTaskStatus.__addrobj_loading_status__ is not None:
 			raise RuntimeError('Multiple FIAS loading tasks spotted')
 
@@ -225,14 +227,22 @@ class WFIASAddrObjExportingTask(WFIASAddrObjBasicTask):
 		WAddressImportCacheSingleton.guid_cache.clear()
 		WAddressImportCacheSingleton.rpc_cache.clear()
 
+	def thread_exception(self, raised_exception):
+		WAppsGlobals.log.error('Unable to complete FIAS exporting')
+		WFIASAddrObjBasicTask.thread_exception(self, raised_exception)
 
-class WFIASExportingTask(WThreadedTaskChain):
+
+class WFIASExportingTask(WThreadTaskLoggingHandler, WThreadedTaskChain):
 
 	def __init__(self):
+		WThreadTaskLoggingHandler.__init__(self)
+		WThreadedTaskChain.__init__(self)
+
 		connection = self.mongo_connection()
 		loading_task = WFIASAddrObjLoadingTask(connection)
 		exporting_task = WFIASAddrObjExportingTask(connection)
 		WThreadedTaskChain.__init__(self, loading_task, exporting_task, thread_name='FIAS-Export')
+		WThreadTaskLoggingHandler.__init__(self)
 		self.__connection = connection
 
 	@classmethod
@@ -248,3 +258,7 @@ class WFIASExportingTask(WThreadedTaskChain):
 	def thread_stopped(self):
 		WThreadedTaskChain.thread_stopped(self)
 		WFIASTaskStatus.reset()
+
+	def thread_exception(self, raised_exception):
+		WAppsGlobals.log.error('Unable to export data. Thread terminated by the internal error')
+		WThreadTaskLoggingHandler.thread_exception(self, raised_exception)
