@@ -497,6 +497,13 @@ class WLanbillingAddressesImporter(WLanbillingAddresses):
 		#INSERT INTO address_meaning(short, name, level_5) VALUES ('спк', 'Сельскохозяйственный производственный кооператив', 1);
 		#INSERT INTO address_meaning(short, name, level_5) VALUES ('дпк', 'Дачный потребительский кооператив', 1);
 		#INSERT INTO address_meaning(short, name, level_5) VALUES ('ряд', 'Ряд', 1);
+		#INSERT INTO address_meaning(short, name, level_5) VALUES ('мгстр', 'Магистраль', 1);
+		#INSERT INTO address_meaning(short, name, level_5) VALUES ('снп', 'Садоводческое некоммерческое партнерство', 1);
+		#INSERT INTO address_meaning(short, name, level_5) VALUES ('онп', 'Огородническое некоммерческое партнерство', 1);
+		#INSERT INTO address_meaning(short, name, level_5) VALUES ('сно', 'Садоводческое некоммерческое объединение', 1);
+		#INSERT INTO address_meaning(short, name, level_5) VALUES ('оно', 'Огородническое некоммерческое объединение', 1);
+		#INSERT INTO address_meaning(short, name, level_5) VALUES ('дно', 'Дачное некоммерческое объединение', 1);
+		#INSERT INTO address_meaning(short, name, level_5) VALUES ('месторождение', 'Месторождение', 1);
 		'''
 		__required_ao_level__ = ['65', '7', '91']
 
@@ -505,11 +512,48 @@ class WLanbillingAddressesImporter(WLanbillingAddresses):
 			WLanbillingAddressesImporter.BasicAdapter.__init__(
 				self, lanbilling_rpc, mongo_record=mongo_record, mongo_collection=mongo_collection,
 				shortname_substitions={
-					'тер. ДНТ': 'днт', 'тер. ТСН': 'тсн', 'пр-д': 'проезд', 'ал.': 'аллея',
-					'пер.': 'пер', 'ш.': 'ш', 'туп.': 'туп', 'пл.': 'пл', 'наб.': 'наб',
-					'тер. СНТ': 'снт', 'тер. СПК': 'спк', 'тер. ДПК': 'дпк', 'тер.': 'тер',
-					'тер. ОПК': 'тер', 'тер. ОНТ': 'тер', 'тер. ГСК': 'гск', 'мкр.': 'мкр',
-					'тер.ф.х.': 'ф/х', 'лн.': 'линия', 'тер. ДНП': 'днп'
+					'тер. ДНТ': 'днт',
+					'тер. ТСН': 'тсн',
+					'пр-д': 'проезд',
+					'ал.': 'аллея',
+					'пер.': 'пер',
+					'ш.': 'ш',
+					'туп.': 'туп',
+					'пл.': 'пл',
+					'наб.': 'наб',
+					'тер. СНТ': 'снт',
+					'тер. СПК': 'спк',
+					'тер. ДПК': 'дпк',
+					'тер.': 'тер',
+					'тер. ОПК': 'тер',
+					'тер. ОНТ': 'тер',
+					'тер. ГСК': 'гск',
+					'мкр.': 'мкр',
+					'тер.ф.х.': 'ф/х',
+					'лн.': 'линия',
+					'тер. ДНП': 'днп',
+					'ул.': 'ул',
+					'платф.': 'платф',
+					'дор.': 'дор',
+					'ст.': 'ст',
+					'мгстр.': 'мгстр',
+					'к-цо': 'кольцо',
+					'пер-д': 'переезд',
+					'пр-к': 'просек',
+					'пр-ка': 'просек',
+					'проул.': 'проулок',
+					'рзд.': 'рзд',
+					'тер. СНП': 'снп',
+					'тер. ОНП': 'онп',
+					'тер. ДНО': 'дно',
+					'тер. ОНО': 'оно',
+					'тер. СНО': 'сно',
+					'месторожд': 'месторождение',
+					'м-ко': 'м',
+					'ж/р': 'ж/д_рзд',
+					'ост-в': 'остров',
+					'х.': 'х',
+					'стр.': 'стр'
 				}
 			)
 			WLanbillingAddresses.Street.__init__(self)
@@ -520,8 +564,9 @@ class WLanbillingAddressesImporter(WLanbillingAddresses):
 
 		def _map_fields(self):
 			fields = WLanbillingAddressesImporter.BasicAdapter._map_fields(self)
-			if 'idx' in fields:
-				fields['idx'] = int(fields['idx'])
+			mongo_record = self.mongo_record()
+			if 'POSTALCODE' in mongo_record:
+				fields['idx'] = int(mongo_record['POSTALCODE'])
 			else:
 				fields['idx'] = 0
 			return fields

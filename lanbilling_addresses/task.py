@@ -92,7 +92,7 @@ class WFIASAddrObjLoadingTask(WFIASAddrObjBasicTask):
 		WFIASAddrObjBasicTask.__init__(self, mongo_connection, 'FIAS-AddrObj-Loading')
 		self.__compact = WAppsGlobals.config.getboolean('lanbilling-addresses', 'compact_records')
 		self.__compact_fields = (
-			'AOID', 'AOGUID', 'PARENTGUID', 'FORMALNAME', 'SHORTNAME', 'AOLEVEL', 'ACTSTATUS'
+			'AOID', 'AOGUID', 'PARENTGUID', 'FORMALNAME', 'SHORTNAME', 'AOLEVEL', 'ACTSTATUS', 'POSTALCODE'
 		)
 
 	@classmethod
