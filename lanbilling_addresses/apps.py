@@ -70,7 +70,7 @@ class WAddressesImportTask(WGuestApp, WFIASExportingTask):
 
 	def thread_started(self):
 		WFIASExportingTask.thread_started(self)
-		if self.stop_event() is False:
+		if self.stop_event().is_set() is False:
 			os.kill(os.getpid(), signal.SIGINT)
 
 	def stop(self):
