@@ -504,6 +504,8 @@ class WLanbillingAddressesImporter(WLanbillingAddresses):
 		#INSERT INTO address_meaning(short, name, level_5) VALUES ('оно', 'Огородническое некоммерческое объединение', 1);
 		#INSERT INTO address_meaning(short, name, level_5) VALUES ('дно', 'Дачное некоммерческое объединение', 1);
 		#INSERT INTO address_meaning(short, name, level_5) VALUES ('месторождение', 'Месторождение', 1);
+		#INSERT INTO address_meaning(short, name, level_5) VALUES ('съезд', 'Съезд', 1);
+		#INSERT INTO address_meaning(short, name, level_5) VALUES ('усадьба', 'Усадьба', 1);
 		'''
 		__required_ao_level__ = ['65', '7', '91']
 
@@ -549,11 +551,20 @@ class WLanbillingAddressesImporter(WLanbillingAddresses):
 					'тер. ОНО': 'оно',
 					'тер. СНО': 'сно',
 					'месторожд': 'месторождение',
+					'месторожд.': 'месторождение',
 					'м-ко': 'м',
 					'ж/р': 'ж/д_рзд',
 					'ост-в': 'остров',
 					'х.': 'х',
-					'стр.': 'стр'
+					'стр.': 'стр',
+					'г-к': 'городок',
+					'с-р': 'сквер',
+					'с-к': 'спуск',
+					'сзд': 'съезд',
+					'сзд.': 'съезд',
+					'б-г': 'берег',
+					'ззд': 'заезд',
+					'ус.': 'усадьба'
 				}
 			)
 			WLanbillingAddresses.Street.__init__(self)
