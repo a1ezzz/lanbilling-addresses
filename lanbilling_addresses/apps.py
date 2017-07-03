@@ -44,25 +44,25 @@ class WFIASScheduledTask(WFIASExportingTask, WScheduledTask, WThreadTaskLoggingH
 
 	def __init__(self):
 		WFIASExportingTask.__init__(self)
-		WScheduledTask.__init__(self, thread_name_suffix='FIAS-import')
+		WScheduledTask.__init__(self, thread_name_suffix='FIAS-export')
 		WThreadTaskLoggingHandler.__init__(self)
 
 	def thread_exception(self, raised_exception):
 		WThreadTaskLoggingHandler.thread_exception(self, raised_exception)
 
 
-class WAddressesImportingCronTask(WCronTasks):
+class WAddressesExportingCronTask(WCronTasks):
 
-	__registry_tag__ = 'com.binblob.lanbilling-addresses.cron-app.fias-import'
+	__registry_tag__ = 'com.binblob.lanbilling-addresses.cron-app.fias-export'
 
 	@classmethod
 	def _cron_tasks(cls):
 		return [WFIASScheduledTask()]
 
 
-class WAddressesImportTask(WGuestApp, WFIASExportingTask):
+class WAddressesExportTask(WGuestApp, WFIASExportingTask):
 
-	__registry_tag__ = 'com.binblob.lanbilling-addresses.fias-import'
+	__registry_tag__ = 'com.binblob.lanbilling-addresses.fias-export'
 
 	def __init__(self):
 		WGuestApp.__init__(self)
@@ -81,16 +81,16 @@ class WAddressesImportTask(WGuestApp, WFIASExportingTask):
 		os.kill(os.getpid(), signal.SIGINT)
 
 
-class WAddressesImportCommands:
+class WAddressesExportCommands:
 
-	class ImportStatus(WCommand):
+	class ExportStatus(WCommand):
 
 		def __init__(self):
-			WCommand.__init__(self, 'apps', 'fias-import', 'status')
+			WCommand.__init__(self, 'apps', 'fias-export', 'status')
 
 		def _exec(self, *command_tokens):
 			if WFIASTaskStatus.__addrobj_loading_status__ is None:
-				return WCommandResult(output="Import doesn't run at the moment")
+				return WCommandResult(output="Export doesn't run at the moment")
 
 			connection = WFIASExportingTask.mongo_connection()
 			mongo_count = connection['AS_ADDROBJ'].count()
@@ -100,24 +100,24 @@ class WAddressesImportCommands:
 			output = 'Load started at: %s UTC\n' % load_start
 			output += 'Records loaded: %i\n' % records_loaded
 
-			import_start = None
+			export_start = None
 			if WFIASTaskStatus.__addrobj_exporting_status__ is not None:
-				import_start = WFIASTaskStatus.__addrobj_exporting_status__.start_time()
-			load_duration = (import_start if import_start is not None else utc_datetime()) - load_start
+				export_start = WFIASTaskStatus.__addrobj_exporting_status__.start_time()
+			load_duration = (export_start if export_start is not None else utc_datetime()) - load_start
 			load_rate = records_loaded / load_duration.total_seconds()
 			output += 'Loading rate: {:.4f} records per second\n'.format(load_rate)
 
 			output += 'Records at the mongo database: %i\n' % mongo_count
 
-			if import_start is not None:
-				output += 'Import started at: %s UTC\n' % import_start
+			if export_start is not None:
+				output += 'Export started at: %s UTC\n' % export_start
 
-				records_imported = WFIASTaskStatus.__addrobj_exporting_status__.records_processed()
-				output += 'Records imported: %i\n' % records_imported
+				records_exported = WFIASTaskStatus.__addrobj_exporting_status__.records_processed()
+				output += 'Records exported: %i\n' % records_exported
 
-				import_duration = utc_datetime() - import_start
-				import_rate = records_imported / import_duration.total_seconds()
-				output += 'Import rate: {:.4f} records per second\n'.format(import_rate)
+				export_duration = utc_datetime() - export_start
+				export_rate = records_exported / export_duration.total_seconds()
+				output += 'Export rate: {:.4f} records per second\n'.format(export_rate)
 
 				cache_hit = WAddressExportCacheSingleton.guid_cache.cache_hit()
 				cache_missed = WAddressExportCacheSingleton.guid_cache.cache_missed()
@@ -132,7 +132,7 @@ class WAddressesImportCommands:
 				output += 'RPC GET Cache hit rate: {:.4f} (total tries: {:d}). Cache size: {:d} records'.format(hit_rate, total_tries, WAddressExportCacheSingleton.rpc_cache.cache_size())
 
 			else:
-				output += "Import doesn't started"
+				output += "Export doesn't started"
 
 			return WCommandResult(output=output)
 
@@ -143,4 +143,4 @@ class WAddressSyncBrokerCommands(WBrokerCommands):
 
 	@classmethod
 	def commands(cls):
-		return [WAddressesImportCommands.ImportStatus()]
+		return [WAddressesExportCommands.ExportStatus()]

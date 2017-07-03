@@ -157,7 +157,7 @@ class WFIASAddrObjLoadingTask(WFIASAddrObjBasicTask):
 		WAppsGlobals.log.info('Loading data')
 		for entry in self.__addrobj_iterate():
 			if self.stop_event().is_set() is True:
-				WAppsGlobals.log.warn("Fias loading task terminated. Importing wasn't complete")
+				WAppsGlobals.log.warn("Fias loading task terminated. Exporting wasn't complete")
 				return
 			self.__load_addrobj(entry, mongo_collection)
 
@@ -198,7 +198,7 @@ class WFIASAddrObjExportingTask(WFIASAddrObjBasicTask):
 		)
 
 	@classmethod
-	def __import_addrobj(cls, lanbilling_rpc, mongo_record, mongo_collection):
+	def __load_addrobj(cls, lanbilling_rpc, mongo_record, mongo_collection):
 		WLanbillingAddressesExporter.export_address(lanbilling_rpc, mongo_record, mongo_collection)
 		WFIASTaskStatus.__addrobj_exporting_status__ += 1
 
@@ -217,11 +217,11 @@ class WFIASAddrObjExportingTask(WFIASAddrObjBasicTask):
 
 		for mongo_record in mongo_collection.find():
 			if self.stop_event().is_set() is True:
-				WAppsGlobals.log.warn("Fias import terminated. Importing wasn't complete")
+				WAppsGlobals.log.warn("Fias export terminated. Exporting wasn't complete")
 				return
-			self.__import_addrobj(self.__rpc_client, mongo_record, mongo_collection)
+			self.__load_addrobj(self.__rpc_client, mongo_record, mongo_collection)
 
-		WAppsGlobals.log.info('FIAS imported successfully')
+		WAppsGlobals.log.info('FIAS exported successfully')
 
 		WAppsGlobals.log.info('Clearing cache')
 		WAddressExportCacheSingleton.guid_cache.clear()

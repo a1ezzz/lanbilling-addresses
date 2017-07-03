@@ -12,15 +12,15 @@ guest_applications_modules =
 guest_applications =
 	com.binblob.wasp-launcher.guest-apps.wasp-basic,
 	com.binblob.wasp-launcher.guest-apps.broker-commands,
-	com.binblob.lanbilling-addresses.fias-import,
-	com.binblob.lanbilling-addresses.cron-app.fias-import,
+	com.binblob.lanbilling-addresses.fias-export,
+	com.binblob.lanbilling-addresses.cron-app.fias-export,
 	com.binblob.lanbilling-addresses.broker-commands
 
 host_applications =
 	com.binblob.wasp-launcher.host-app.broker::start
 
 [wasp-launcher::scheduler::cron]
-com.binblob.lanbilling-addresses.cron-app.fias-import = * * * * *
+com.binblob.lanbilling-addresses.cron-app.fias-export = * * * * *
 
 [lanbilling-addresses]
 mongo_connection = mongodb://localhost:27017/

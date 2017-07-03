@@ -1,6 +1,6 @@
 
-from lanbilling_addresses.apps import WAddressesImportingCronTask, WAddressSyncBrokerCommands, WAddressesImportTask
+from lanbilling_addresses.apps import WAddressesExportingCronTask, WAddressSyncBrokerCommands, WAddressesExportTask
 
 
 def __wasp_launcher_apps__():
-	return [WAddressesImportingCronTask, WAddressSyncBrokerCommands, WAddressesImportTask]
+	return [WAddressesExportingCronTask, WAddressSyncBrokerCommands, WAddressesExportTask]

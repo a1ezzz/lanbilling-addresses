@@ -229,7 +229,7 @@ class WAddressPartExportAdapter(WLanbillingAddresses.AddressPart):
 			raise RuntimeError('Multiple entries found')
 		return self.update(lanbilling_rpc, **rpc_record)
 
-	def import_record(self):
+	def export_record(self):
 		mongo_record = self.mongo_record()
 		mongo_collection = self.mongo_collection()
 
@@ -416,7 +416,7 @@ class WLanbillingAddressesExporter(WLanbillingAddresses):
 	class AreaAdapter(BasicAdapter, WLanbillingAddresses.Area):
 		""" Original XML file has multiple records with "SHORTNAME" field like 'г.о.', but current lanbilling
 		LTS version (19.1) doesn't support that kind of short name. It must be inserted into LBCore database
-		in order to import these records and all of theirs children.
+		in order to export these records and all of theirs children.
 
 		SQL:
 		INSERT INTO address_meaning(short, name, level_2) VALUES ('г.о.', 'Городской округ', 1);
@@ -461,7 +461,7 @@ class WLanbillingAddressesExporter(WLanbillingAddresses):
 
 		 Original XML file has multiple records with "SHORTNAME" field like 'тер. СПК', but current lanbilling
 		LTS version (19.1) doesn't support that kind of short name. It must be inserted into LBCore database
-		in order to import these records and all of theirs children.
+		in order to export these records and all of theirs children.
 
 		SQL:
 		"""
@@ -604,4 +604,4 @@ class WLanbillingAddressesExporter(WLanbillingAddresses):
 	def export_address(cls, lanbilling_rpc, mongo_record, mongo_collection):
 		part = cls.get_part(mongo_record)
 		part = part(lanbilling_rpc, mongo_record=mongo_record, mongo_collection=mongo_collection)
-		part.import_record()
+		part.export_record()
