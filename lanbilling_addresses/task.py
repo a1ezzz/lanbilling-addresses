@@ -39,7 +39,7 @@ from wasp_launcher.apps import WAppsGlobals, WThreadTaskLoggingHandler
 from wasp_launcher.mongodb import WMongoConnection
 
 from lanbilling_addresses.lanbilling import WLanbillingRPC
-from lanbilling_addresses.importer import WLanbillingAddressesImporter, WAddressImportCacheSingleton
+from lanbilling_addresses.exporter import WLanbillingAddressesImporter, WAddressImportCacheSingleton
 
 
 class WFIASTaskStatus:

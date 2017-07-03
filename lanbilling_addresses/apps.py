@@ -37,7 +37,7 @@ from wasp_general.command.command import WCommand, WCommandResult
 from wasp_launcher.apps import WCronTasks, WBrokerCommands, WGuestApp, WThreadTaskLoggingHandler
 
 from lanbilling_addresses.task import WFIASExportingTask, WFIASTaskStatus
-from lanbilling_addresses.importer import WAddressImportCacheSingleton, WGUIDCacheRecord
+from lanbilling_addresses.exporter import WAddressImportCacheSingleton, WGUIDCacheRecord
 
 
 class WFIASScheduledTask(WFIASExportingTask, WScheduledTask, WThreadTaskLoggingHandler):
