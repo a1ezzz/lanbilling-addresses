@@ -247,14 +247,6 @@ class WAddressPartImportAdapter(WLanbillingAddresses.AddressPart):
 			print('ERROR PROCESSING: %s %s' % (mongo_record['AOLEVEL'], mongo_record['SHORTNAME']))
 			print(mongo_record)
 			WAppsGlobals.log.error('SOAP fault:\n' + str(e))
-		except RuntimeError as e:
-			print('ERROR PROCESSING: %s %s' % (mongo_record['AOLEVEL'], mongo_record['SHORTNAME']))
-			print(mongo_record)
-			WAppsGlobals.log.error('Runtime fault:\n' + str(e))
-			import traceback
-			print('EXC DETAIL')
-			print(traceback.format_exc())
-			raise
 
 	@classmethod
 	@cache_control(storage=WAddressImportCacheSingleton.guid_cache)
