@@ -39,7 +39,7 @@ from wasp_launcher.apps import WAppsGlobals, WThreadTaskLoggingHandler
 from wasp_launcher.mongodb import WMongoConnection
 
 from lanbilling_addresses.lanbilling import WLanbillingRPC
-from lanbilling_addresses.exporter import WLanbillingAddressesImporter, WAddressImportCacheSingleton
+from lanbilling_addresses.exporter import WLanbillingAddressesExporter, WAddressExportCacheSingleton
 
 
 class WFIASTaskStatus:
@@ -199,7 +199,7 @@ class WFIASAddrObjExportingTask(WFIASAddrObjBasicTask):
 
 	@classmethod
 	def __import_addrobj(cls, lanbilling_rpc, mongo_record, mongo_collection):
-		WLanbillingAddressesImporter.import_address(lanbilling_rpc, mongo_record, mongo_collection)
+		WLanbillingAddressesExporter.export_address(lanbilling_rpc, mongo_record, mongo_collection)
 		WFIASTaskStatus.__addrobj_exporting_status__ += 1
 
 	def thread_started(self):
@@ -210,8 +210,8 @@ class WFIASAddrObjExportingTask(WFIASAddrObjBasicTask):
 		WFIASTaskStatus.__addrobj_exporting_status__ = WFIASTaskStatus()
 
 		WAppsGlobals.log.info('Clearing cache')
-		WAddressImportCacheSingleton.guid_cache.clear()
-		WAddressImportCacheSingleton.rpc_cache.clear()
+		WAddressExportCacheSingleton.guid_cache.clear()
+		WAddressExportCacheSingleton.rpc_cache.clear()
 
 		mongo_collection = self.mongo_collection()
 
@@ -224,8 +224,8 @@ class WFIASAddrObjExportingTask(WFIASAddrObjBasicTask):
 		WAppsGlobals.log.info('FIAS imported successfully')
 
 		WAppsGlobals.log.info('Clearing cache')
-		WAddressImportCacheSingleton.guid_cache.clear()
-		WAddressImportCacheSingleton.rpc_cache.clear()
+		WAddressExportCacheSingleton.guid_cache.clear()
+		WAddressExportCacheSingleton.rpc_cache.clear()
 
 	def thread_exception(self, raised_exception):
 		WAppsGlobals.log.error('Unable to complete FIAS exporting')

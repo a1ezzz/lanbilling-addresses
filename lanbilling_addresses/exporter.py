@@ -134,7 +134,7 @@ class WRPCRecordCacheStorage(WCacheStorage):
 		return cls.__cache_size__
 
 
-class WAddressImportCacheSingleton:
+class WAddressExportCacheSingleton:
 	# THIS STORAGE IS NOT THREAD SAFE!
 	guid_cache = WInstanceSingletonCacheStorage(cache_record_cls=WGUIDCacheRecord, statistic=True)
 	# THIS STORAGE IS NOT THREAD SAFE!
@@ -148,7 +148,7 @@ class WAddressImportCacheSingleton:
 			cache_result = dict(fields)
 			cache_result['recordid'] = result
 
-			WAddressImportCacheSingleton.rpc_cache.put(
+			WAddressExportCacheSingleton.rpc_cache.put(
 				[cache_result], cls.get, cls, lanbilling_rpc, **fields
 			)
 
@@ -157,7 +157,7 @@ class WAddressImportCacheSingleton:
 		return decorator.decorator(first_level_decorator)(decorated_function)
 
 
-class WAddressPartImportAdapter(WLanbillingAddresses.AddressPart):
+class WAddressPartExportAdapter(WLanbillingAddresses.AddressPart):
 
 	__required_ao_level__ = None
 
@@ -249,10 +249,10 @@ class WAddressPartImportAdapter(WLanbillingAddresses.AddressPart):
 			WAppsGlobals.log.error('SOAP fault:\n' + str(e))
 
 	@classmethod
-	@cache_control(storage=WAddressImportCacheSingleton.guid_cache)
+	@cache_control(storage=WAddressExportCacheSingleton.guid_cache)
 	def cached_id(cls, ao_guid, lanbilling_rpc, mongo_collection, adapter_classes=None):
 		mongo_record = mongo_collection.find_one({'AOGUID': ao_guid})
-		adapter_cls = WLanbillingAddressesImporter.get_part(mongo_record)
+		adapter_cls = WLanbillingAddressesExporter.get_part(mongo_record)
 
 		if adapter_cls is None:
 			raise RuntimeError('No suitable adapter found')
@@ -266,7 +266,7 @@ class WAddressPartImportAdapter(WLanbillingAddresses.AddressPart):
 		return adapter.rpc_recordid(), adapter
 
 	@classmethod
-	@cache_control(storage=WAddressImportCacheSingleton.rpc_cache)
+	@cache_control(storage=WAddressExportCacheSingleton.rpc_cache)
 	def get(cls, lanbilling_rpc, **fields):
 		method = getattr(lanbilling_rpc.rpc(), cls.__get_method__)
 		args = {}
@@ -284,7 +284,7 @@ class WAddressPartImportAdapter(WLanbillingAddresses.AddressPart):
 		return list(filter(filter_result, result))
 
 	@classmethod
-	@WAddressImportCacheSingleton.update_rpc_cache
+	@WAddressExportCacheSingleton.update_rpc_cache
 	def update(cls, lanbilling_rpc, **fields):
 		method = getattr(lanbilling_rpc.rpc(), cls.__update_method__)
 		args = {'recordid': 0}
@@ -310,16 +310,16 @@ class WAddressPartImportAdapter(WLanbillingAddresses.AddressPart):
 
 			recurse_region, recurse_area, recurse_city, recurse_settle = parent_adapter.parent_indexes()
 
-			if isinstance(parent_adapter, WLanbillingAddressesImporter.RegionAdapter) is True:
+			if isinstance(parent_adapter, WLanbillingAddressesExporter.RegionAdapter) is True:
 				region = parent_recordid
-			elif isinstance(parent_adapter, WLanbillingAddressesImporter.AreaAdapter) is True:
+			elif isinstance(parent_adapter, WLanbillingAddressesExporter.AreaAdapter) is True:
 				region = recurse_region
 				area = parent_recordid
-			elif isinstance(parent_adapter, WLanbillingAddressesImporter.CityAdapter) is True:
+			elif isinstance(parent_adapter, WLanbillingAddressesExporter.CityAdapter) is True:
 				region = recurse_region
 				area = recurse_area
 				city = parent_recordid
-			elif isinstance(parent_adapter, WLanbillingAddressesImporter.SettleAdapter) is True:
+			elif isinstance(parent_adapter, WLanbillingAddressesExporter.SettleAdapter) is True:
 				region = recurse_region
 				area = recurse_area
 				city = recurse_city
@@ -332,32 +332,32 @@ class WAddressPartImportAdapter(WLanbillingAddresses.AddressPart):
 		return region, area, city, settle
 
 
-class WLanbillingAddressesImporter(WLanbillingAddresses):
+class WLanbillingAddressesExporter(WLanbillingAddresses):
 
-	class CountryAdapter(WAddressPartImportAdapter, WLanbillingAddresses.Country):
+	class CountryAdapter(WAddressPartExportAdapter, WLanbillingAddresses.Country):
 
 		__country_name__ = 'Российская Федерация'
 
 		@verify_type('paranoid', lanbilling_rpc=WLanbillingRPC)
 		def __init__(self, lanbilling_rpc):
-			WAddressPartImportAdapter.__init__(self, lanbilling_rpc)
+			WAddressPartExportAdapter.__init__(self, lanbilling_rpc)
 			WLanbillingAddresses.Country.__init__(self)
 
 		def _map_fields(self):
-			return {'name': WLanbillingAddressesImporter.CountryAdapter.__country_name__}
+			return {'name': WLanbillingAddressesExporter.CountryAdapter.__country_name__}
 
 		@staticmethod
 		@verify_type('paranoid', lanbilling_rpc=WLanbillingRPC)
 		def country_id(lanbilling_rpc):
-			country_adapter = WLanbillingAddressesImporter.CountryAdapter(lanbilling_rpc)
+			country_adapter = WLanbillingAddressesExporter.CountryAdapter(lanbilling_rpc)
 			country_recordid = country_adapter.rpc_recordid()
 			return country_recordid
 
-	class BasicAdapter(WAddressPartImportAdapter):
+	class BasicAdapter(WAddressPartExportAdapter):
 
 		@verify_type(shortname_substitions=(dict, None))
 		def __init__(self, lanbilling_rpc, mongo_record, mongo_collection, shortname_substitions=None):
-			WAddressPartImportAdapter.__init__(
+			WAddressPartExportAdapter.__init__(
 				self, lanbilling_rpc, mongo_record=mongo_record, mongo_collection=mongo_collection,
 				fields_map={'name': 'FORMALNAME', 'shortname': 'SHORTNAME'}
 			)
@@ -367,7 +367,7 @@ class WLanbillingAddressesImporter(WLanbillingAddresses):
 			return self.__substitions
 
 		def _map_fields(self):
-			fields = WAddressPartImportAdapter._map_fields(self)
+			fields = WAddressPartExportAdapter._map_fields(self)
 			shortname = fields['shortname']
 			substitutions = self._shortname_substitutions()
 			if shortname in substitutions:
@@ -388,20 +388,20 @@ class WLanbillingAddressesImporter(WLanbillingAddresses):
 
 		@verify_type('paranoid', lanbilling_rpc=WLanbillingRPC)
 		def __init__(self, lanbilling_rpc, mongo_record, mongo_collection):
-			WLanbillingAddressesImporter.BasicAdapter.__init__(
+			WLanbillingAddressesExporter.BasicAdapter.__init__(
 				self, lanbilling_rpc, mongo_record=mongo_record, mongo_collection=mongo_collection
 			)
 			WLanbillingAddresses.Region.__init__(self)
 
 		def _map_indexes(self):
-			country_id = WLanbillingAddressesImporter.CountryAdapter.country_id(self.lanbilling_rpc())
+			country_id = WLanbillingAddressesExporter.CountryAdapter.country_id(self.lanbilling_rpc())
 			if country_id is None:
 				raise RuntimeError('Unable to find country id')
 
 			return {'country': country_id}
 
 		def _map_fields(self):
-			fields = WLanbillingAddressesImporter.BasicAdapter._map_fields(self)
+			fields = WLanbillingAddressesExporter.BasicAdapter._map_fields(self)
 			mongo_record = self.mongo_record()
 			ao_id = mongo_record['AOID']
 			if ao_id in [
@@ -426,7 +426,7 @@ class WLanbillingAddressesImporter(WLanbillingAddresses):
 
 		@verify_type('paranoid', lanbilling_rpc=WLanbillingRPC)
 		def __init__(self, lanbilling_rpc, mongo_record, mongo_collection):
-			WLanbillingAddressesImporter.BasicAdapter.__init__(
+			WLanbillingAddressesExporter.BasicAdapter.__init__(
 				self, lanbilling_rpc, mongo_record=mongo_record, mongo_collection=mongo_collection
 			)
 			WLanbillingAddresses.Area.__init__(self)
@@ -444,7 +444,7 @@ class WLanbillingAddressesImporter(WLanbillingAddresses):
 
 		@verify_type('paranoid', lanbilling_rpc=WLanbillingRPC)
 		def __init__(self, lanbilling_rpc, mongo_record, mongo_collection):
-			WLanbillingAddressesImporter.BasicAdapter.__init__(
+			WLanbillingAddressesExporter.BasicAdapter.__init__(
 				self, lanbilling_rpc, mongo_record=mongo_record, mongo_collection=mongo_collection,
 				shortname_substitions={'г.': 'г'}
 			)
@@ -470,7 +470,7 @@ class WLanbillingAddressesImporter(WLanbillingAddresses):
 
 		@verify_type('paranoid', lanbilling_rpc=WLanbillingRPC)
 		def __init__(self, lanbilling_rpc, mongo_record, mongo_collection):
-			WLanbillingAddressesImporter.BasicAdapter.__init__(
+			WLanbillingAddressesExporter.BasicAdapter.__init__(
 				self, lanbilling_rpc, mongo_record=mongo_record, mongo_collection=mongo_collection,
 				shortname_substitions={'тер.': 'тер', 'тер. СНТ': 'снт'}
 			)
@@ -503,7 +503,7 @@ class WLanbillingAddressesImporter(WLanbillingAddresses):
 
 		@verify_type('paranoid', lanbilling_rpc=WLanbillingRPC)
 		def __init__(self, lanbilling_rpc, mongo_record, mongo_collection):
-			WLanbillingAddressesImporter.BasicAdapter.__init__(
+			WLanbillingAddressesExporter.BasicAdapter.__init__(
 				self, lanbilling_rpc, mongo_record=mongo_record, mongo_collection=mongo_collection,
 				shortname_substitions={
 					'тер. ДНТ': 'днт',
@@ -566,7 +566,7 @@ class WLanbillingAddressesImporter(WLanbillingAddresses):
 			return {'region': parent_region, 'city': parent_city, 'settl': parent_settle}
 
 		def _map_fields(self):
-			fields = WLanbillingAddressesImporter.BasicAdapter._map_fields(self)
+			fields = WLanbillingAddressesExporter.BasicAdapter._map_fields(self)
 			mongo_record = self.mongo_record()
 			if 'POSTALCODE' in mongo_record:
 				fields['idx'] = int(mongo_record['POSTALCODE'])
@@ -578,15 +578,15 @@ class WLanbillingAddressesImporter(WLanbillingAddresses):
 	def get_part(cls, mongo_record):
 
 		parts_map = {
-			"1": WLanbillingAddressesImporter.RegionAdapter,
-			"3": WLanbillingAddressesImporter.AreaAdapter,
-			"4": WLanbillingAddressesImporter.CityAdapter,
-			"5": WLanbillingAddressesImporter.SettleAdapter,
-			"6": WLanbillingAddressesImporter.SettleAdapter,
-			"65": WLanbillingAddressesImporter.StreetAdapter,
-			"7": WLanbillingAddressesImporter.StreetAdapter,
-			"90": WLanbillingAddressesImporter.SettleAdapter,
-			"91": WLanbillingAddressesImporter.StreetAdapter,
+			"1": WLanbillingAddressesExporter.RegionAdapter,
+			"3": WLanbillingAddressesExporter.AreaAdapter,
+			"4": WLanbillingAddressesExporter.CityAdapter,
+			"5": WLanbillingAddressesExporter.SettleAdapter,
+			"6": WLanbillingAddressesExporter.SettleAdapter,
+			"65": WLanbillingAddressesExporter.StreetAdapter,
+			"7": WLanbillingAddressesExporter.StreetAdapter,
+			"90": WLanbillingAddressesExporter.SettleAdapter,
+			"91": WLanbillingAddressesExporter.StreetAdapter,
 		}
 
 		aolevel = mongo_record['AOLEVEL']
@@ -601,7 +601,7 @@ class WLanbillingAddressesImporter(WLanbillingAddresses):
 
 	@classmethod
 	@verify_type('paranoid', lanbilling_rpc=WLanbillingRPC)
-	def import_address(cls, lanbilling_rpc, mongo_record, mongo_collection):
+	def export_address(cls, lanbilling_rpc, mongo_record, mongo_collection):
 		part = cls.get_part(mongo_record)
 		part = part(lanbilling_rpc, mongo_record=mongo_record, mongo_collection=mongo_collection)
 		part.import_record()
