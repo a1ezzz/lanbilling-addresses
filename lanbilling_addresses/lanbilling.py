@@ -145,44 +145,48 @@ class WLanbillingAddresses:
 		__update_method__ = 'insupdAddressCountry'
 		__get_method__ = 'getAddressCountries'
 
+		@classmethod
 		@verify_type('paranoid', lanbilling_rpc=WLanbillingRPC)
 		@verify_type(recordid=(int, None), name=str)
-		def update(self, lanbilling_rpc, name=None, **fields):
-			return WLanbillingAddresses.AddressPart.update(self, lanbilling_rpc, name=name, **fields)
+		def update(cls, lanbilling_rpc, name=None, **fields):
+			return WLanbillingAddresses.AddressPart.update(cls, lanbilling_rpc, name=name, **fields)
 
 
 	class Region(AddressPart):
 		__update_method__ = 'insupdAddressRegion'
 		__get_method__ = 'getAddressRegions'
 
+		@classmethod
 		@verify_type('paranoid', lanbilling_rpc=WLanbillingRPC)
 		@verify_type(recordid=(int, None), country=int, name=str, shortname=str)
-		def update(self, lanbilling_rpc, country=None, name=None, shortname=None, **fields):
+		def update(cls, lanbilling_rpc, country=None, name=None, shortname=None, **fields):
 			return WLanbillingAddresses.AddressPart.update(
-				self, lanbilling_rpc, country=country, name=name, shortname=shortname, **fields
+				cls, lanbilling_rpc, country=country, name=name, shortname=shortname, **fields
 			)
 
 	class Area(AddressPart):
 		__update_method__ = 'insupdAddressArea'
 		__get_method__ = 'getAddressAreas'
 
+		@classmethod
 		@verify_type('paranoid', lanbilling_rpc=WLanbillingRPC)
 		@verify_type(recordid=(int, None), region=int, name=str, shortname=str)
-		def update(self, lanbilling_rpc, region=None, name=None, shortname=None, **fields):
+		def update(cls, lanbilling_rpc, region=None, name=None, shortname=None, **fields):
 			return WLanbillingAddresses.AddressPart.update(
-				self, lanbilling_rpc, region=region, name=name, shortname=shortname, **fields
+				cls, lanbilling_rpc, region=region, name=name, shortname=shortname, **fields
 			)
 
 	class City(AddressPart):
 
-		__update_method__ = 'insupdAddressArea'
-		__get_method__ = 'getAddressAreas'
+		__update_method__ = 'insupdAddressCity'
+		__get_method__ = 'getAddressCities'
 
+		@classmethod
 		@verify_type('paranoid', lanbilling_rpc=WLanbillingRPC)
 		@verify_type(recordid=(int, None), region=int, area=int, name=str, shortname=str)
-		def update(self, lanbilling_rpc, region=None, name=None, shortname=None, **fields):
+		def update(cls, lanbilling_rpc, region=None, area=None, name=None, shortname=None, **fields):
 			return WLanbillingAddresses.AddressPart.update(
-				self, lanbilling_rpc, region=region, name=name, shortname=shortname, **fields
+				cls, lanbilling_rpc, region=region, area=area, name=name, shortname=shortname, **fields
 			)
 
 	class Settle(AddressPart):
@@ -190,11 +194,12 @@ class WLanbillingAddresses:
 		__update_method__ = 'insupdAddressSettle'
 		__get_method__ = 'getAddressSettles'
 
+		@classmethod
 		@verify_type('paranoid', lanbilling_rpc=WLanbillingRPC)
 		@verify_type(recordid=(int, None), region=int, area=int, city=int, name=str, shortname=str)
-		def update(self, lanbilling_rpc, region=None, name=None, shortname=None, **fields):
+		def update(cls, lanbilling_rpc, region=None, area=None, name=None, shortname=None, **fields):
 			return WLanbillingAddresses.AddressPart.update(
-				self, lanbilling_rpc, region=region, name=name, shortname=shortname, **fields
+				cls, lanbilling_rpc, region=region, area=area, name=name, shortname=shortname, **fields
 			)
 
 	class Street(AddressPart):
@@ -202,9 +207,10 @@ class WLanbillingAddresses:
 		__update_method__ = 'insupdAddressStreet'
 		__get_method__ = 'getAddressStreets'
 
+		@classmethod
 		@verify_type('paranoid', lanbilling_rpc=WLanbillingRPC)
 		@verify_type(recordid=(int, None), region=int, city=int, settl=int, idx=int, name=str, shortname=str)
-		def update(self, lanbilling_rpc, region=None, name=None, shortname=None, **fields):
+		def update(cls, lanbilling_rpc, region=None, city=None, settl=None, idx=None, name=None, shortname=None, **fields):
 			return WLanbillingAddresses.AddressPart.update(
-				self, lanbilling_rpc, region=region, name=name, shortname=shortname, **fields
+				cls, lanbilling_rpc, region=region, city=city, settl=settl, idx=idx, name=name, shortname=shortname, **fields
 			)
