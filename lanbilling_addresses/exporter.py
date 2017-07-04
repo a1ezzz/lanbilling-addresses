@@ -73,7 +73,7 @@ class WGUIDCacheRecord(WInstanceSingletonCacheStorage.InstanceCacheRecord):
 
 class WRPCRecordCacheStorage(WCacheStorage):
 
-	__cache_size__ = 1000
+	__cache_size__ = 50
 
 	def __init__(self):
 		WCacheStorage.__init__(self)
@@ -81,11 +81,24 @@ class WRPCRecordCacheStorage(WCacheStorage):
 		self.__cache_missed = 0
 		self.__cache_hit = 0
 
+	def filter_fields(self, **kwargs):
+		result = dict(kwargs)
+
+		remove_fields = []
+		for key, value in result.items():
+			if value == 0:
+				remove_fields.append(key)
+
+		for field in remove_fields:
+			result.pop(field)
+
+		return result
+
 	@verify_value(decorated_function=lambda x: callable(x))
 	def put(self, result, decorated_function, *args, **kwargs):
 		cls = args[0]
 		get_method = cls.__get_method__
-		fields = dict(kwargs)
+		fields = self.filter_fields(**kwargs)
 
 		if 'recordid' in fields:
 			fields.pop('recordid')
@@ -100,7 +113,7 @@ class WRPCRecordCacheStorage(WCacheStorage):
 	def get_cache(self, decorated_function, *args, **kwargs):
 		cls = args[0]
 		get_method = cls.__get_method__
-		fields = dict(kwargs)
+		fields = self.filter_fields(**kwargs)
 
 		if 'recordid' in fields:
 			fields.pop('recordid')
@@ -252,6 +265,8 @@ class WAddressPartExportAdapter(WLanbillingAddresses.AddressPart):
 	@cache_control(storage=WAddressExportCacheSingleton.guid_cache)
 	def cached_id(cls, ao_guid, lanbilling_rpc, mongo_collection, adapter_classes=None):
 		mongo_record = mongo_collection.find_one({'AOGUID': ao_guid})
+		if mongo_record is None:
+			raise RuntimeError('Unable to find object with AOGUID: ' + str(ao_guid))
 		adapter_cls = WLanbillingAddressesExporter.get_part(mongo_record)
 
 		if adapter_cls is None:
@@ -275,6 +290,8 @@ class WAddressPartExportAdapter(WLanbillingAddresses.AddressPart):
 
 		def filter_result(result_item):
 			for key, value in fields.items():
+				if value == 0 and (key not in result_item or result_item[key] == 0):
+					continue
 				if key not in result_item:
 					return False
 				if result_item[key] != value:
@@ -556,6 +573,7 @@ class WLanbillingAddressesExporter(WLanbillingAddresses):
 					'сзд.': 'съезд',
 					'б-г': 'берег',
 					'ззд': 'заезд',
+					'ззд.': 'заезд',
 					'ус.': 'усадьба'
 				}
 			)
