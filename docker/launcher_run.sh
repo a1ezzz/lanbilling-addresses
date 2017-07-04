@@ -29,7 +29,7 @@ compact_records = True
 
 fias_directory = /fias-data
 EOF
-
+echo "limit_regions = $LABILLING_LIMIT_REGIONS" >> "$WASP_LAUNCHER_CONFIGURATION"
 echo "login=$LABILLING_LOGIN" >> "$WASP_LAUNCHER_CONFIGURATION"
 echo "password=$LABILLING_PASSWORD" >> "$WASP_LAUNCHER_CONFIGURATION"
 echo "hostname=$LABILLING_HOSTNAME" >> "$WASP_LAUNCHER_CONFIGURATION"

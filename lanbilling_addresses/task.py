@@ -94,6 +94,8 @@ class WFIASAddrObjLoadingTask(WFIASAddrObjBasicTask):
 		self.__compact_fields = (
 			'AOID', 'AOGUID', 'PARENTGUID', 'FORMALNAME', 'SHORTNAME', 'AOLEVEL', 'ACTSTATUS', 'POSTALCODE'
 		)
+		regions = WAppsGlobals.config.split_option('lanbilling-addresses', 'limit_regions')
+		self.__regions = regions if len(regions) > 0 else None
 
 	@classmethod
 	def __addrobj_xml(cls):
@@ -123,15 +125,17 @@ class WFIASAddrObjLoadingTask(WFIASAddrObjBasicTask):
 			yield elem
 
 	def __load_addrobj(self, entry, mongo_collection):
-		if 'ACTSTATUS' in entry.attrib and entry.attrib['ACTSTATUS'] == '1':
-			if self.__compact is True:
-				mongo_record = {}
-				for key in self.__compact_fields:
-					if key in entry.attrib:
-						mongo_record[key] = entry.attrib[key]
-			else:
-				mongo_record = dict(entry.attrib)
-			mongo_collection.insert_one(mongo_record)
+
+		if self.__regions is None or entry.attrib['REGIONCODE'] in self.__regions:
+			if 'ACTSTATUS' in entry.attrib and entry.attrib['ACTSTATUS'] == '1':
+				if self.__compact is True:
+					mongo_record = {}
+					for key in self.__compact_fields:
+						if key in entry.attrib:
+							mongo_record[key] = entry.attrib[key]
+				else:
+					mongo_record = dict(entry.attrib)
+				mongo_collection.insert_one(mongo_record)
 		self.__cleanup_entry(entry)
 		WFIASTaskStatus.__addrobj_loading_status__ += 1
 
